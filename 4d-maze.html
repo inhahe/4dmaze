@@ -1,0 +1,1552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>4D Maze</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #0d1117; color: #c9d1d9;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  display: flex; height: 100vh; height: 100dvh; overflow: hidden;
+}
+
+/* ── Sidebar ───────────────────────────────────────────── */
+.sidebar {
+  width: 330px; min-width: 330px;
+  padding: 16px 18px; overflow-y: auto;
+  border-right: 1px solid #21262d;
+  background: #0d1117;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.sidebar::-webkit-scrollbar { width: 6px; }
+.sidebar::-webkit-scrollbar-track { background: transparent; }
+.sidebar::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+
+.sidebar h1 {
+  font-size: 20px; font-weight: 700; letter-spacing: -0.5px;
+  background: linear-gradient(135deg, #58a6ff, #f778ba, #ffd24a);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+.sidebar h1 span { font-size: 11px; font-weight: 400; opacity: 0.7;
+  -webkit-text-fill-color: #8b949e; display: block; margin-top: 2px; letter-spacing: 0; }
+
+/* ── Sections ──────────────────────────────────────────── */
+.section { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 11px 13px; }
+.section-title {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.9px; margin-bottom: 9px; color: #8b949e;
+  display: flex; align-items: center; gap: 6px; justify-content: space-between;
+}
+.section-title .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.section-title .left { display: flex; align-items: center; gap: 6px; }
+
+/* ── Form controls ─────────────────────────────────────── */
+label.field { display: block; font-size: 11px; color: #8b949e; margin-bottom: 4px; }
+select, input[type=number], input[type=text] {
+  width: 100%; background: #0d1117; color: #c9d1d9;
+  border: 1px solid #30363d; border-radius: 6px;
+  padding: 6px 8px; font-size: 12px; font-family: inherit;
+}
+select:focus, input:focus { outline: none; border-color: #58a6ff; }
+.row { display: flex; gap: 8px; }
+.row > * { flex: 1; min-width: 0; }
+
+button {
+  background: #21262d; color: #c9d1d9; border: 1px solid #30363d;
+  border-radius: 6px; padding: 7px 10px; font-size: 12px;
+  font-family: inherit; cursor: pointer; transition: background .15s, border-color .15s;
+}
+button:hover { background: #30363d; border-color: #8b949e; }
+button:active { background: #161b22; }
+button.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; font-weight: 600; }
+button.primary:hover { background: #388bfd; border-color: #388bfd; }
+
+/* ── Slider rows ───────────────────────────────────────── */
+.slider-row { margin-bottom: 9px; }
+.slider-row:last-child { margin-bottom: 0; }
+.slider-row .lbl { display: flex; justify-content: space-between; font-size: 11px;
+  color: #8b949e; margin-bottom: 3px; }
+.slider-row .lbl b { color: #58a6ff; font-weight: 600; font-variant-numeric: tabular-nums; }
+input[type=range] { width: 100%; -webkit-appearance: none; appearance: none;
+  height: 4px; border-radius: 2px; background: #30363d; outline: none; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+  width: 13px; height: 13px; border-radius: 50%; background: #58a6ff; cursor: pointer; }
+input[type=range]::-moz-range-thumb { width: 13px; height: 13px; border: none;
+  border-radius: 50%; background: #58a6ff; cursor: pointer; }
+
+/* ── Control pad ───────────────────────────────────────── */
+.pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.pad button { padding: 6px 2px; font-size: 11px; line-height: 1.25; }
+.pad button small { display: block; font-size: 9px; color: #6e7681; margin-top: 1px; }
+.pad .spacer { visibility: hidden; }
+.pad-caption { font-size: 10px; color: #6e7681; margin: 8px 0 5px; text-transform: uppercase;
+  letter-spacing: .7px; }
+.pad-caption:first-child { margin-top: 0; }
+
+/* ── Status readout ────────────────────────────────────── */
+.readout { font-size: 11px; font-family: ui-monospace, Consolas, monospace; line-height: 1.7; }
+.readout div { display: flex; justify-content: space-between; gap: 8px; }
+.readout .k { color: #6e7681; }
+.readout .v { color: #c9d1d9; }
+
+.hint { font-size: 10.5px; color: #6e7681; line-height: 1.5; margin-top: 7px; }
+.hint b { color: #8b949e; font-weight: 600; }
+
+/* Wall-colour key: a swatch per palette slot, so the view is readable
+   without having to memorise which hue means which direction. */
+#wallkey { display: flex; flex-wrap: wrap; gap: 3px 10px; margin-top: 7px;
+  font-size: 10px; font-family: ui-monospace, Consolas, monospace; color: #8b949e; }
+#wallkey span { display: inline-flex; align-items: center; gap: 4px; }
+#wallkey i { width: 11px; height: 2px; border-radius: 1px; }
+
+/* ── Viewport ──────────────────────────────────────────── */
+.viewport { flex: 1; position: relative; background: #000; min-width: 0; }
+#view { display: block; width: 100%; height: 100%; }
+
+.overlay { position: absolute; pointer-events: none;
+  font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
+#compass { top: 12px; left: 14px; color: #8b949e; line-height: 1.65;
+  text-shadow: 0 0 4px #000, 0 0 4px #000; }
+#compass .hd { color: #6e7681; font-size: 9.5px; text-transform: uppercase;
+  letter-spacing: .8px; margin-bottom: 2px; }
+#goalinfo { top: 12px; right: 14px; text-align: right; color: #8b949e; line-height: 1.65;
+  text-shadow: 0 0 4px #000, 0 0 4px #000; }
+#goalinfo b { color: #ffd24a; }
+
+#mapwrap { position: absolute; right: 12px; bottom: 12px; pointer-events: none;
+  background: rgba(13,17,23,.82); border: 1px solid #21262d; border-radius: 8px; padding: 8px; }
+#mapwrap.hidden { display: none; }
+#mapcap { font-size: 9px; color: #6e7681; text-transform: uppercase; letter-spacing: .8px;
+  margin-bottom: 5px; font-family: ui-monospace, Consolas, monospace; display: flex;
+  justify-content: space-between; gap: 12px; }
+#map { display: block; }
+
+#win { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+  background: rgba(13,17,23,.86); flex-direction: column; gap: 14px; text-align: center; }
+#win.show { display: flex; }
+#win h2 { font-size: 30px; font-weight: 700;
+  background: linear-gradient(135deg, #ffd24a, #f778ba); -webkit-background-clip: text;
+  background-clip: text; -webkit-text-fill-color: transparent; }
+#win p { color: #8b949e; font-size: 13px; }
+#win button { pointer-events: auto; padding: 9px 22px; }
+
+.badge { font-size: 9px; padding: 1px 5px; border-radius: 4px; background: #21262d;
+  color: #8b949e; font-weight: 600; letter-spacing: .4px; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <h1>4D Maze<span>a hypercubic labyrinth, seen in stereo</span></h1>
+
+  <div class="section">
+    <div class="section-title"><div class="left"><span class="dot" style="background:#58a6ff"></span>Display</div></div>
+    <label class="field">Stereo mode</label>
+    <select id="mode">
+      <option value="wall">Wall-eyed stereoscope (parallel)</option>
+      <option value="cross">Cross-eyed stereoscope</option>
+      <option value="anaglyph">Red / cyan glasses</option>
+      <option value="mono">Mono (no stereo)</option>
+    </select>
+    <div class="hint" id="modehint"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><div class="left"><span class="dot" style="background:#f778ba"></span>Move</div></div>
+    <div class="pad-caption">Translate</div>
+    <div class="pad">
+      <button class="spacer"></button>
+      <button data-move="1,+1">up<small>R</small></button>
+      <button class="spacer"></button>
+      <button data-move="0,-1">left<small>A</small></button>
+      <button data-move="2,+1">fwd<small>W</small></button>
+      <button data-move="0,+1">right<small>D</small></button>
+      <button data-move="3,-1">kata<small>G</small></button>
+      <button data-move="2,-1">back<small>S</small></button>
+      <button data-move="3,+1">ana<small>T</small></button>
+      <button class="spacer"></button>
+      <button data-move="1,-1">down<small>F</small></button>
+      <button class="spacer"></button>
+    </div>
+    <div class="pad-caption">Turn (90&deg;)</div>
+    <div class="pad">
+      <button class="spacer"></button>
+      <button data-turn="2,1,+1">pitch up<small>&uarr;</small></button>
+      <button class="spacer"></button>
+      <button data-turn="2,0,-1">yaw left<small>&larr;</small></button>
+      <button data-turn="0,1,+1">roll<small>Z</small></button>
+      <button data-turn="2,0,+1">yaw right<small>&rarr;</small></button>
+      <button data-turn="2,3,-1">turn kata<small>Q</small></button>
+      <button data-turn="2,1,-1">pitch down<small>&darr;</small></button>
+      <button data-turn="2,3,+1">turn ana<small>E</small></button>
+    </div>
+    <div class="hint"><b>Turn ana/kata</b> swings your forward axis into the 4th dimension &mdash;
+      what was ana becomes straight ahead.</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><div class="left"><span class="dot" style="background:#6bff8f"></span>Maze</div></div>
+    <div class="row">
+      <div>
+        <label class="field">Size (per axis)</label>
+        <select id="size">
+          <option value="3">3&#8308; = 81</option>
+          <option value="4" selected>4&#8308; = 256</option>
+          <option value="5">5&#8308; = 625</option>
+          <option value="6">6&#8308; = 1296</option>
+          <option value="7">7&#8308; = 2401</option>
+        </select>
+      </div>
+      <div>
+        <label class="field">Seed</label>
+        <input type="number" id="seed" value="1" min="0" step="1">
+      </div>
+    </div>
+    <div class="slider-row" style="margin-top:9px">
+      <div class="lbl"><span>Loops (braiding)</span><b id="braidv">0%</b></div>
+      <input type="range" id="braid" min="0" max="100" value="0">
+    </div>
+    <div class="row">
+      <button class="primary" id="newmaze">New maze</button>
+      <button id="restart">Restart</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><div class="left"><span class="dot" style="background:#ffd24a"></span>View</div></div>
+    <div class="slider-row">
+      <div class="lbl"><span>Field of view</span><b id="fovv">90&deg;</b></div>
+      <input type="range" id="fov" min="40" max="130" value="90">
+    </div>
+    <div class="slider-row">
+      <div class="lbl"><span>Sight range (cells)</span><b id="depthv">7</b></div>
+      <input type="range" id="depth" min="2" max="14" value="7">
+    </div>
+    <div class="slider-row">
+      <div class="lbl"><span>Pane width</span><b id="panev">240 px</b></div>
+      <input type="range" id="pane" min="140" max="700" value="240">
+    </div>
+    <div class="slider-row">
+      <div class="lbl"><span>Stereo separation</span><b id="sepv">0.060</b></div>
+      <input type="range" id="sep" min="0" max="160" value="60">
+    </div>
+    <div class="slider-row">
+      <div class="lbl"><span>Stereo depth (ana scale)</span><b id="sdepthv">1.00&times;</b></div>
+      <input type="range" id="sdepth" min="20" max="300" value="100">
+    </div>
+    <div class="slider-row">
+      <div class="lbl"><span>Animation speed</span><b id="animv">1.0&times;</b></div>
+      <input type="range" id="anim" min="30" max="400" value="100">
+    </div>
+    <div class="row" style="margin-top:2px">
+      <div>
+        <label class="field">Sight</label>
+        <select id="xray">
+          <option value="solid" selected>Solid walls</option>
+          <option value="los">Line of sight, wireframe</option>
+          <option value="xray">X-ray (see through walls)</option>
+        </select>
+      </div>
+      <div>
+        <label class="field">Wall colour</label>
+        <select id="wallcol">
+          <option value="dir" selected>By direction (8)</option>
+          <option value="axis">By axis (4)</option>
+        </select>
+      </div>
+    </div>
+    <div class="hint" id="xrayhint"></div>
+    <div class="hint" id="wallcolhint"></div>
+    <div id="wallkey"></div>
+    <div class="row" style="margin-top:10px">
+      <div>
+        <label class="field">Fusion guides</label>
+        <select id="guides">
+          <option value="on" selected>On</option>
+          <option value="off">Off</option>
+        </select>
+      </div>
+      <div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><div class="left"><span class="dot" style="background:#58a6ff"></span>4D map overlay</div></div>
+    <label class="field">Reveal</label>
+    <select id="mapmode">
+      <option value="visited" selected>Cells I have stood in</option>
+      <option value="full">The whole maze</option>
+      <option value="off">Hide the map</option>
+    </select>
+    <div class="hint">Fog of war for the corner <b>map</b> only. It does not change
+      what the 3-D view shows &mdash; that is the <b>Sight</b> setting above.</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><div class="left"><span class="dot" style="background:#8b949e"></span>Status</div></div>
+    <div class="readout">
+      <div><span class="k">cell</span><span class="v" id="rcell">&mdash;</span></div>
+      <div><span class="k">steps</span><span class="v" id="rsteps">0</span></div>
+      <div><span class="k">to goal</span><span class="v" id="rdist">&mdash;</span></div>
+      <div><span class="k">visited</span><span class="v" id="rvisit">&mdash;</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="viewport" id="viewport">
+  <canvas id="view"></canvas>
+  <div class="overlay" id="compass"></div>
+  <div class="overlay" id="goalinfo"></div>
+  <div class="overlay" id="mapwrap">
+    <div id="mapcap"><span>4D map</span><span id="mapsub"></span></div>
+    <canvas id="map"></canvas>
+  </div>
+  <div id="win">
+    <h2>Solved</h2>
+    <p id="winsub"></p>
+    <button class="primary" id="wingo">Next maze</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LAYER 1 — MAZE DATA
+   ---------------------------------------------------------------------------
+   A pure 4-D connectivity structure and nothing else.  It knows about cells
+   and which faces between them are open; it knows nothing about players,
+   cameras, projection or pixels.  Everything above it talks to it only
+   through inBounds / isOpen / neighbor / distances.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const AXIS_NAME = ['X', 'Y', 'Z', 'W'];
+const AXIS_RGB  = [[255,107,107], [107,255,143], [107,178,255], [255,210,74]];
+
+// Eight surface directions: the two faces of a cell on each axis get related
+// but distinguishable hues, so a wall's colour tells you which way it faces
+// and not merely which axis it is perpendicular to.  Index is
+// axis*2 + (wall on the +axis side ? 1 : 0), matching the edge record.
+const DIR_NAME = ['X\u2212', 'X+', 'Y\u2212', 'Y+', 'Z\u2212', 'Z+', 'W\u2212', 'W+'];
+const DIR_RGB  = [[255,159,69], [255,107,107],     // X: orange / red
+                  [ 53,208,192], [107,255,143],    // Y: teal   / green
+                  [155,140,255], [107,178,255],    // Z: violet / blue
+                  [247,120,186], [255,210,74]];    // W: pink   / yellow
+
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+class Maze4D {
+  /** @param {number[]} size  extent along each of the four axes */
+  constructor(size) {
+    this.size = size.slice();
+    this.strides = [1, size[0], size[0] * size[1], size[0] * size[1] * size[2]];
+    this.count = size[0] * size[1] * size[2] * size[3];
+    // One byte per cell; bit `a` set means "open toward +axis a".
+    // A face is stored once, on the lower-coordinate cell of the pair.
+    this.pass = new Uint8Array(this.count);
+  }
+
+  idx(c) { const s = this.strides; return c[0] * s[0] + c[1] * s[1] + c[2] * s[2] + c[3] * s[3]; }
+
+  cellFromIndex(i) {
+    const s = this.size;
+    const x = i % s[0]; i = (i - x) / s[0];
+    const y = i % s[1]; i = (i - y) / s[1];
+    const z = i % s[2]; i = (i - z) / s[2];
+    return [x, y, z, i];
+  }
+
+  inBounds(c) {
+    for (let a = 0; a < 4; a++) if (c[a] < 0 || c[a] >= this.size[a]) return false;
+    return true;
+  }
+
+  /** Can you pass out of cell `c` through the face on `axis` in direction `sign` (±1)? */
+  isOpen(c, axis, sign) {
+    if (sign > 0) {
+      if (c[axis] + 1 >= this.size[axis]) return false;
+      return ((this.pass[this.idx(c)] >> axis) & 1) === 1;
+    }
+    if (c[axis] <= 0) return false;
+    return ((this.pass[this.idx(c) - this.strides[axis]] >> axis) & 1) === 1;
+  }
+
+  /** Carve the face out of `c` on `axis` toward `sign`. */
+  openFace(c, axis, sign) {
+    if (sign > 0) this.pass[this.idx(c)] |= 1 << axis;
+    else this.pass[this.idx(c) - this.strides[axis]] |= 1 << axis;
+  }
+
+  neighbor(c, axis, sign) { const d = c.slice(); d[axis] += sign; return d; }
+
+  degree(c) {
+    let d = 0;
+    for (let a = 0; a < 4; a++) { if (this.isOpen(c, a, +1)) d++; if (this.isOpen(c, a, -1)) d++; }
+    return d;
+  }
+
+  /** Breadth-first passage distance from `start` to every cell (-1 if unreachable). */
+  distances(start) {
+    const dist = new Int32Array(this.count).fill(-1);
+    dist[this.idx(start)] = 0;
+    let frontier = [start];
+    while (frontier.length) {
+      const next = [];
+      for (const c of frontier) {
+        const d = dist[this.idx(c)];
+        for (let a = 0; a < 4; a++) {
+          for (let s = -1; s <= 1; s += 2) {
+            if (!this.isOpen(c, a, s)) continue;
+            const nb = this.neighbor(c, a, s), ni = this.idx(nb);
+            if (dist[ni] < 0) { dist[ni] = d + 1; next.push(nb); }
+          }
+        }
+      }
+      frontier = next;
+    }
+    return dist;
+  }
+}
+
+/**
+ * Randomised depth-first carve (recursive backtracker), producing a perfect
+ * maze: every cell reachable, exactly one path between any two.  `braid`
+ * (0..1) then re-opens that fraction of dead ends to introduce loops.
+ */
+function generateMaze(size, seed, braid) {
+  const rnd = mulberry32(seed >>> 0);
+  const m = new Maze4D(size);
+  const visited = new Uint8Array(m.count);
+  const start = [0, 0, 0, 0];
+  visited[m.idx(start)] = 1;
+  const stack = [start];
+
+  while (stack.length) {
+    const c = stack[stack.length - 1];
+    const cand = [];
+    for (let a = 0; a < 4; a++) {
+      for (let s = -1; s <= 1; s += 2) {
+        const nb = m.neighbor(c, a, s);
+        if (m.inBounds(nb) && !visited[m.idx(nb)]) cand.push([a, s, nb]);
+      }
+    }
+    if (!cand.length) { stack.pop(); continue; }
+    const [a, s, nb] = cand[(rnd() * cand.length) | 0];
+    m.openFace(c, a, s);
+    visited[m.idx(nb)] = 1;
+    stack.push(nb);
+  }
+
+  if (braid > 0) {
+    for (let i = 0; i < m.count; i++) {
+      const c = m.cellFromIndex(i);
+      if (m.degree(c) > 1 || rnd() >= braid) continue;
+      const cand = [];
+      for (let a = 0; a < 4; a++) {
+        for (let s = -1; s <= 1; s += 2) {
+          if (m.inBounds(m.neighbor(c, a, s)) && !m.isOpen(c, a, s)) cand.push([a, s]);
+        }
+      }
+      if (cand.length) { const p = cand[(rnd() * cand.length) | 0]; m.openFace(c, p[0], p[1]); }
+    }
+  }
+  return m;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LAYER 2 — NAVIGATOR
+   ---------------------------------------------------------------------------
+   Where the player is and which way they are facing, plus the rules for
+   changing that.  Orientation is four world-space basis vectors — the world
+   directions of the player's local right / up / forward / ana axes.  Because
+   every turn is exactly 90 degrees these stay signed unit vectors, so the
+   pose is held in exact integers and can never drift.
+
+   Depends on Maze4D's query API only.  Knows nothing about rendering.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const L_RIGHT = 0, L_UP = 1, L_FWD = 2, L_ANA = 3;
+const LOCAL_NAME = ['right', 'up', 'fwd', 'ana'];
+
+const easeInOut = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+class Navigator {
+  constructor(maze, cell) {
+    this.maze = maze;
+    this.cell = cell.slice();
+    // basis[k] = world-space direction of local axis k.
+    this.basis = [[1,0,0,0], [0,1,0,0], [0,0,1,0], [0,0,0,1]];
+    this.anim = null;
+    this.queue = [];
+    this.steps = 0;
+    this.onArrive = null;
+  }
+
+  /** World direction of local axis `k` travelled with `sign`. */
+  worldDir(k, sign) { const b = this.basis[k]; return [b[0]*sign, b[1]*sign, b[2]*sign, b[3]*sign]; }
+
+  /** Decompose a signed unit vector into [worldAxis, sign]. */
+  static axisOf(v) { for (let a = 0; a < 4; a++) if (v[a] !== 0) return [a, v[a] > 0 ? 1 : -1]; return [0, 1]; }
+
+  canMove(k, sign) {
+    const [wa, ws] = Navigator.axisOf(this.worldDir(k, sign));
+    return this.maze.isOpen(this.cell, wa, ws);
+  }
+
+  requestMove(k, sign) { this.queue.push({ kind: 'move', k, sign }); this._trim(); }
+
+  /** Rotate 90° in the local plane (i, j): local axis i swings toward axis j. */
+  requestTurn(i, j, dir) { this.queue.push({ kind: 'turn', i, j, dir }); this._trim(); }
+
+  _trim() { if (this.queue.length > 2) this.queue.splice(0, this.queue.length - 2); }
+
+  update(dt, speed) {
+    if (this.anim) {
+      this.anim.t += dt * speed / this.anim.dur;
+      if (this.anim.t >= 1) { this._commit(this.anim); this.anim = null; }
+    }
+    if (!this.anim && this.queue.length) {
+      const cmd = this.queue.shift();
+      if (cmd.kind === 'move') {
+        const delta = this.worldDir(cmd.k, cmd.sign);
+        this.anim = this.canMove(cmd.k, cmd.sign)
+          ? { kind: 'move', t: 0, dur: 0.17, delta }
+          : { kind: 'bump', t: 0, dur: 0.15, delta };      // blocked: nudge for feedback
+      } else {
+        this.anim = { kind: 'turn', t: 0, dur: 0.22, i: cmd.i, j: cmd.j, dir: cmd.dir };
+      }
+    }
+  }
+
+  _commit(a) {
+    if (a.kind === 'move') {
+      for (let k = 0; k < 4; k++) this.cell[k] += a.delta[k];
+      this.steps++;
+      if (this.onArrive) this.onArrive(this.cell);
+    } else if (a.kind === 'turn') {
+      // cos90 = 0, sin90 = dir.  new_i = +basis_j*dir,  new_j = -basis_i*dir
+      const s = a.dir, bi = this.basis[a.i], bj = this.basis[a.j];
+      this.basis[a.i] = [bj[0]*s, bj[1]*s, bj[2]*s, bj[3]*s];
+      this.basis[a.j] = [-bi[0]*s, -bi[1]*s, -bi[2]*s, -bi[3]*s];
+    }
+  }
+
+  get busy() { return !!this.anim || this.queue.length > 0; }
+
+  /**
+   * Current interpolated pose.
+   *   pos   – 4-D world position (cell centre plus any move-in-progress)
+   *   basis – the settled orientation
+   *   rot   – {i, j, theta} extra local rotation for a turn in progress
+   */
+  pose() {
+    const pos = [this.cell[0] + 0.5, this.cell[1] + 0.5, this.cell[2] + 0.5, this.cell[3] + 0.5];
+    let rot = null;
+    if (this.anim) {
+      const t = Math.min(this.anim.t, 1);
+      if (this.anim.kind === 'move') {
+        const e = easeInOut(t);
+        for (let k = 0; k < 4; k++) pos[k] += this.anim.delta[k] * e;
+      } else if (this.anim.kind === 'bump') {
+        const b = Math.sin(t * Math.PI) * 0.11;
+        for (let k = 0; k < 4; k++) pos[k] += this.anim.delta[k] * b;
+      } else {
+        rot = { i: this.anim.i, j: this.anim.j, theta: this.anim.dir * easeInOut(t) * Math.PI / 2 };
+      }
+    }
+    return { pos, basis: this.basis, rot };
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LAYER 3 — SCENE BUILDER  (the 4-D → 3-D projection)
+   ---------------------------------------------------------------------------
+   Turns "maze + pose" into a list of line segments in RETINA SPACE, a 3-D
+   space.  In 3-D your retina is 2-D: you project along forward and right/up
+   become the image axes.  The 4-D generalisation is a 3-D retina: still
+   project along forward, and right / up / ANA become the three image axes.
+   So the fourth dimension turns into the depth axis of the 3-D image — which
+   the renderer below shows stereoscopically.  Your own 3-space slice lands
+   exactly on the zero-parallax plane and looks like an ordinary perspective
+   drawing; anything displaced in ana floats in front of or behind it.
+   Occlusion, meanwhile, is governed by forward-depth, which got projected
+   away — so we sort back-to-front by it and fade with it.
+
+   Depends on Maze4D's query API and a plain pose object.  Knows nothing
+   about canvases, eyes, or stereo modes.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Cells reachable from `start` through open passages within `depth` steps.
+ *  This is the candidate set — it bounds how far we look, but on its own it
+ *  leaks: it happily walks round a corner into a corridor the player has no
+ *  sightline to.  `collectVisibleCells` filters it by actual line of sight. */
+function collectReachableCells(maze, start, depth) {
+  const out = [start.slice()];
+  const seen = new Set([maze.idx(start)]);
+  let frontier = [start];
+  for (let d = 0; d < depth; d++) {
+    const next = [];
+    for (const c of frontier) {
+      for (let a = 0; a < 4; a++) {
+        for (let s = -1; s <= 1; s += 2) {
+          if (!maze.isOpen(c, a, s)) continue;
+          const nb = maze.neighbor(c, a, s), ni = maze.idx(nb);
+          if (seen.has(ni)) continue;
+          seen.add(ni); next.push(nb); out.push(nb);
+        }
+      }
+    }
+    if (!next.length) break;
+    frontier = next;
+  }
+  return out;
+}
+
+/**
+ * Is the straight 4-D segment from `from` to `to` free of walls?
+ *
+ * A 4-D grid march (Amanatides–Woo, one dimension up): step to whichever axis
+ * boundary is nearest, and check the wall on the face being crossed.  Both
+ * endpoints are strictly inside cells, so we stop just short of `to` — the
+ * target may sit on a cell boundary and must not block itself.
+ *
+ * Rays that pass exactly through a lattice corner — two boundaries crossed at
+ * the same instant — are ambiguous, and the two callers want opposite answers:
+ *
+ *   cell visibility (default)  reports a graze BLOCKED.  Squeezing light
+ *     through a zero-width corner is not real visibility, and the caller casts
+ *     several offset rays anyway, so a genuine sightline that merely happens to
+ *     graze is still found by one of the others.
+ *   hidden-line removal (`permissive`) steps through whichever tied face is
+ *     open.  Here a wrong "blocked" punches a visible hole in a line the cell
+ *     gate has already vetted, which is worse than a hairline leak — and edge
+ *     endpoints sit ON lattice planes, so grazes are common.
+ */
+function losClear(maze, from, to, permissive) {
+  const cell0 = [0, 0, 0, 0], step = [0, 0, 0, 0];
+  const tMax0 = [0, 0, 0, 0], tDelta = [0, 0, 0, 0];
+  for (let a = 0; a < 4; a++) {
+    cell0[a] = Math.floor(from[a]);
+    const d = to[a] - from[a];
+    if (d > 1e-12) {
+      step[a] = 1;  tDelta[a] = 1 / d;  tMax0[a] = (cell0[a] + 1 - from[a]) / d;
+    } else if (d < -1e-12) {
+      step[a] = -1; tDelta[a] = -1 / d; tMax0[a] = (cell0[a] - from[a]) / d;
+    } else {
+      step[a] = 0;  tDelta[a] = Infinity; tMax0[a] = Infinity;
+    }
+  }
+  const EPS = 1e-9, STOP = 1 - 1e-9;
+  let budget = 4096;      // shared across branches, so grazes cannot explode
+
+  const march = (cell, tMax) => {
+    for (;;) {
+      if (--budget < 0) return false;
+      let a = 0;
+      for (let k = 1; k < 4; k++) if (tMax[k] < tMax[a]) a = k;
+      if (tMax[a] >= STOP) return true;                     // arrived unobstructed
+
+      let tied = 0, n = 0;                                  // boundaries crossed together
+      for (let k = 0; k < 4; k++) {
+        if (tMax[k] < tMax[a] + EPS) { tied |= 1 << k; n++; }
+      }
+      if (n > 1) {
+        if (!permissive) return false;
+        // Clear if ANY ordering of the simultaneous crossings stays in open
+        // space.  Greedily taking the first open face would be wrong: that
+        // branch can dead-end at its second crossing while the other order
+        // walks straight through.
+        for (let k = 0; k < 4; k++) {
+          if (!(tied & (1 << k)) || !maze.isOpen(cell, k, step[k])) continue;
+          const c2 = cell.slice(), t2 = tMax.slice();
+          c2[k] += step[k]; t2[k] += tDelta[k];
+          if (march(c2, t2)) return true;
+        }
+        return false;
+      }
+
+      if (!maze.isOpen(cell, a, step[a])) return false;     // walked into a wall
+      cell[a] += step[a];
+      tMax[a] += tDelta[a];
+    }
+  };
+  return march(cell0, tMax0);
+}
+
+// Where inside a target cell we aim.  The centre plus one point pushed toward
+// each of the eight faces: a cell you can only glimpse through the far edge of
+// a doorway is still visible, and the off-centre rays dodge the corner grazes
+// that a centre-to-centre ray runs into on any diagonal.
+const LOS_AIM = (() => {
+  const pts = [[0.5, 0.5, 0.5, 0.5]];
+  for (let a = 0; a < 4; a++) {
+    for (let s = -1; s <= 1; s += 2) {
+      const p = [0.5, 0.5, 0.5, 0.5];
+      p[a] = 0.5 + s * 0.36;
+      pts.push(p);
+    }
+  }
+  return pts;
+})();
+
+/**
+ * The cells the player can actually SEE from `start`, within `depth`.
+ *
+ * Passage-reachability alone is not visibility — it walks round corners, which
+ * is why the wireframe used to show the layout of corridors the player had no
+ * sightline to (and, since a wireframe has no opaque surfaces, showed it
+ * straight through the intervening wall).  So each candidate is checked with a
+ * small fan of rays from the player's eye; the cell is visible if any of them
+ * gets through.
+ *
+ * `xray` restores the old see-everything behaviour as a deliberate option.
+ */
+function collectVisibleCells(maze, start, depth, xray) {
+  const cand = collectReachableCells(maze, start, depth);
+  if (xray) return cand;
+  const eye = [start[0] + 0.5, start[1] + 0.5, start[2] + 0.5, start[3] + 0.5];
+  const aim = [0, 0, 0, 0];
+  const out = [];
+  for (const c of cand) {
+    let seen = false;
+    for (const o of LOS_AIM) {
+      for (let a = 0; a < 4; a++) aim[a] = c[a] + o[a];
+      if (losClear(maze, eye, aim)) { seen = true; break; }
+    }
+    if (seen) out.push(c);
+  }
+  return out;
+}
+
+/**
+ * Visibility depends only on which CELL the player stands in — not on where
+ * they are mid-step, and not at all on which way they face — so it is computed
+ * once per cell and cached.  Without this the grid march would rerun every
+ * frame for no benefit.
+ */
+const _visCache = new Map();
+let _visCacheMaze = null;
+function visibleCellsFor(maze, cell, depth, xray) {
+  if (_visCacheMaze !== maze) { _visCache.clear(); _visCacheMaze = maze; }
+  if (_visCache.size > 4096) _visCache.clear();
+  const key = maze.idx(cell) * 64 + depth * 2 + (xray ? 1 : 0);
+  let v = _visCache.get(key);
+  if (!v) { v = collectVisibleCells(maze, cell, depth, xray); _visCache.set(key, v); }
+  return v;
+}
+
+/**
+ * Every wall bounding the visible set, as deduplicated lattice edges.
+ *
+ * A cell is a unit tesseract and a wall between two cells is a unit 3-cube.
+ * Drawing all 12 edges of every such cube turns a flat run of wall into a
+ * dense ladder of rungs and the view into an unreadable starburst, so we
+ * merge coplanar walls: within one wall hyperplane the wall cubes tile a 3-D
+ * grid, and every lattice edge of that grid is surrounded by four cube slots.
+ * Classify by which of those four are solid —
+ *
+ *     4 solid            fully interior       -> skip
+ *     2 solid, adjacent  flat surface         -> skip   (kills the rungs)
+ *     2 solid, diagonal  crease               -> draw
+ *     1 or 3 solid       convex/concave edge  -> draw
+ *
+ * — which leaves exactly the silhouettes of wall slabs and the rims around
+ * openings.  Doorways therefore outline themselves, for free.
+ *
+ * Coordinates are doubled so every corner lands on an integer.  Each edge is
+ * tagged with the world axis it runs along and coloured by it, giving a fixed
+ * absolute-orientation cue no matter how the player has turned.
+ */
+function collectWallEdges(maze, cells) {
+  const size = maze.size;
+  // Face identity: wall hyperplane `a` at lattice coordinate `pc`, positioned
+  // at cell coordinates (c0, c1, c2) along the three axes other than `a`.
+  const faceKey = (a, pc, c0, c1, c2) => (((c2 * 8 + c1) * 8 + c0) * 9 + pc) * 4 + a;
+
+  // ── pass 1: which wall faces are we drawing at all? ──
+  const faces = new Set();
+  const FREE = [[1,2,3], [0,2,3], [0,1,3], [0,1,2]];
+  for (const c of cells) {
+    for (let a = 0; a < 4; a++) {
+      const f = FREE[a];
+      for (let s = -1; s <= 1; s += 2) {
+        if (maze.isOpen(c, a, s)) continue;                 // a passage, not a wall
+        faces.add(faceKey(a, c[a] + (s > 0 ? 1 : 0), c[f[0]], c[f[1]], c[f[2]]));
+      }
+    }
+  }
+
+  // ── pass 2: emit the edges those faces do not share flatly ──
+  const edges = new Map();
+  const code = p => ((p[0] * 16 + p[1]) * 16 + p[2]) * 16 + p[3];   // coords ≤ 15
+  const P4 = [0, 0, 0, 0], Q4 = [0, 0, 0, 0];
+  const uu = [0, 0, 0];
+  const present = [false, false, false, false];
+
+  for (const c of cells) {
+    for (let a = 0; a < 4; a++) {
+      const free = FREE[a];
+      for (let s = -1; s <= 1; s += 2) {
+        if (maze.isOpen(c, a, s)) continue;
+        const pc = c[a] + (s > 0 ? 1 : 0);
+        const u = [c[free[0]], c[free[1]], c[free[2]]];
+
+        for (let ei = 0; ei < 3; ei++) {
+          const e = free[ei];
+          const pi = (ei + 1) % 3, qi = (ei + 2) % 3;
+
+          for (let bp = 0; bp <= 1; bp++) {
+            for (let bq = 0; bq <= 1; bq++) {
+              const Pp = u[pi] + bp, Qq = u[qi] + bq;
+
+              // the four wall slots meeting along this edge
+              let n = 0;
+              for (let dp = 0; dp < 2; dp++) {
+                for (let dq = 0; dq < 2; dq++) {
+                  const cp = Pp - 1 + dp, cq = Qq - 1 + dq;
+                  let ok = cp >= 0 && cp < size[free[pi]] && cq >= 0 && cq < size[free[qi]];
+                  if (ok) {
+                    uu[ei] = u[ei]; uu[pi] = cp; uu[qi] = cq;
+                    ok = faces.has(faceKey(a, pc, uu[0], uu[1], uu[2]));
+                  }
+                  present[dp * 2 + dq] = ok;
+                  if (ok) n++;
+                }
+              }
+              if (n === 4) continue;                                    // interior
+              if (n === 2 && ((present[0] && present[1]) || (present[2] && present[3]) ||
+                              (present[0] && present[2]) || (present[1] && present[3]))) {
+                continue;                                               // flat surface
+              }
+
+              P4[a] = 2 * pc;             Q4[a] = P4[a];
+              P4[free[pi]] = 2 * Pp;      Q4[free[pi]] = P4[free[pi]];
+              P4[free[qi]] = 2 * Qq;      Q4[free[qi]] = P4[free[qi]];
+              P4[e] = 2 * u[ei];          Q4[e] = P4[e] + 2;
+              // P4 < Q4 on axis e alone, so code(P4) < code(Q4): canonical
+              const key = code(P4) * 65536 + code(Q4);
+              if (!edges.has(key)) {
+                // faceDir: which way the surface lies as seen from the cell
+                // that owns it — 8 values, one per signed world axis.  Cells
+                // arrive in BFS order, so the first claim on a shared edge is
+                // the nearest surface, which is the one you are looking at.
+                edges.set(key, [P4[0], P4[1], P4[2], P4[3], Q4[0], Q4[1], Q4[2], Q4[3],
+                                e, a * 2 + (s > 0 ? 1 : 0), false]);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return edges;
+}
+
+/** The 32 edges of one cell's tesseract — used to mark the goal. */
+function tesseractEdges(cell) {
+  const out = [];
+  for (let v = 0; v < 16; v++) {
+    for (let a = 0; a < 4; a++) {
+      if (v & (1 << a)) continue;                       // emit each edge once
+      const p = [0, 0, 0, 0], q = [0, 0, 0, 0];
+      for (let k = 0; k < 4; k++) { p[k] = 2 * cell[k] + ((v >> k) & 1) * 2; q[k] = p[k]; }
+      q[a] = p[a] + 2;
+      out.push([p[0], p[1], p[2], p[3], q[0], q[1], q[2], q[3], a, a * 2, true]);
+    }
+  }
+  return out;
+}
+
+/**
+ * Hidden-line removal — what actually makes the walls opaque.
+ *
+ * Cell-level line of sight already drops whole cells you have no sightline
+ * to, but within the set that survives, walls still overlap one another: the
+ * rim of a doorway two cells away is half-hidden behind the wall in front of
+ * it, and drawing it whole is exactly what makes a wireframe read as
+ * transparent.  Testing visibility per POINT rather than per cell turns every
+ * wall face into a real occluder, so a wall you are facing draws as its own
+ * outline and nothing else — a solid surface.
+ *
+ * Occlusion runs along FORWARD, and only along forward.  It is tempting to
+ * think the fourth dimension should occlude too, since it is drawn as stereo
+ * depth, but ana is a LATERAL direction of the 4-D visual field — the third
+ * axis of the retina, exactly like left/right and up/down.  Two points that
+ * differ only in ana no more hide each other than two points side by side do.
+ *
+ * Each edge is sampled, the visible runs are coalesced, and every run
+ * boundary is refined by bisection so the cut lands on the occluding
+ * silhouette instead of on a sample boundary.
+ */
+const HLR_SAMPLES = 12;      // intervals along an edge
+const HLR_REFINE  = 7;       // bisection steps per run boundary
+
+function hideOccludedEdges(maze, list, eye) {
+  const p = [0, 0, 0, 0];
+  const vis = new Array(HLR_SAMPLES + 1);
+  const out = [];
+
+  // Edge coordinates are doubled so corners are integers; halve to world.
+  const seeAt = (e, t) => {
+    for (let a = 0; a < 4; a++) p[a] = (e[a] + (e[a + 4] - e[a]) * t) * 0.5;
+    return losClear(maze, eye, p, true);
+  };
+  // Where between a visible and a hidden sample the silhouette really falls.
+  const cutAt = (e, tIn, tOut) => {
+    for (let i = 0; i < HLR_REFINE; i++) {
+      const m = (tIn + tOut) * 0.5;
+      if (seeAt(e, m)) tIn = m; else tOut = m;
+    }
+    return tIn;
+  };
+  const emit = (e, t0, t1) => {
+    if (t1 - t0 < 1e-3) return;                 // a sliver nobody can see
+    if (t0 === 0 && t1 === 1) { out.push(e); return; }
+    const s = e.slice();
+    for (let a = 0; a < 4; a++) {
+      const d = e[a + 4] - e[a];
+      s[a] = e[a] + d * t0;
+      s[a + 4] = e[a] + d * t1;
+    }
+    out.push(s);
+  };
+
+  for (const e of list) {
+    let all = true;
+    for (let i = 0; i <= HLR_SAMPLES; i++) {
+      vis[i] = seeAt(e, i / HLR_SAMPLES);
+      if (!vis[i]) all = false;
+    }
+    if (all) { out.push(e); continue; }         // the common case, uncut
+
+    let i = 0;
+    while (i <= HLR_SAMPLES) {
+      if (!vis[i]) { i++; continue; }
+      let j = i;
+      while (j < HLR_SAMPLES && vis[j + 1]) j++;
+      const t0 = i === 0 ? 0 : cutAt(e, i / HLR_SAMPLES, (i - 1) / HLR_SAMPLES);
+      const t1 = j === HLR_SAMPLES ? 1 : cutAt(e, j / HLR_SAMPLES, (j + 1) / HLR_SAMPLES);
+      emit(e, t0, t1);
+      i = j + 2;
+    }
+  }
+  return out;
+}
+
+/**
+ * Project lattice edges into retina space.
+ *
+ * Each endpoint goes world → local (right, up, fwd, ana) → perspective
+ * divide by forward depth:
+ *      sx = right * F / fwd     sy = up * F / fwd     sw = ana * F / fwd
+ *
+ * Both clip planes are LINEAR in local 4-D coordinates, so we clip there and
+ * project after — perspective maps straight segments to straight segments,
+ * but not affinely, so clipping post-divide would land in the wrong place.
+ *   near plane :  fwd ≥ near
+ *   stereo     :  sw > -D·k   ⇔   F·ana + D·k·fwd > 0
+ */
+function projectEdges(edgeList, pose, cfg) {
+  const { pos, basis, rot } = pose;
+  // The ana axis carries the user's stereo-depth exaggeration, so it gets its
+  // own focal length.  The guard plane below is written in terms of Fa, not F
+  // — clipping on the un-exaggerated depth would let scaled-up points slip
+  // past the eye and turn the divisor negative.
+  const F = cfg.focal, Fa = cfg.focal * cfg.anaScale, near = cfg.near;
+  const guard = cfg.stereoDist * 0.9;
+  const b0 = basis[0], b1 = basis[1], b2 = basis[2], b3 = basis[3];
+  let ct = 1, st = 0, ri = -1, rj = -1;
+  if (rot) { ct = Math.cos(rot.theta); st = Math.sin(rot.theta); ri = rot.i; rj = rot.j; }
+
+  const v0 = [0, 0, 0, 0], v1 = [0, 0, 0, 0];
+  const segs = [];
+
+  const toLocal = (x, y, z, w, out) => {
+    const dx = x * 0.5 - pos[0], dy = y * 0.5 - pos[1], dz = z * 0.5 - pos[2], dw = w * 0.5 - pos[3];
+    out[0] = b0[0]*dx + b0[1]*dy + b0[2]*dz + b0[3]*dw;
+    out[1] = b1[0]*dx + b1[1]*dy + b1[2]*dz + b1[3]*dw;
+    out[2] = b2[0]*dx + b2[1]*dy + b2[2]*dz + b2[3]*dw;
+    out[3] = b3[0]*dx + b3[1]*dy + b3[2]*dz + b3[3]*dw;
+    if (ri >= 0) {  // apply Rᵀ(theta) for the turn in progress
+      const vi = out[ri], vj = out[rj];
+      out[ri] = ct * vi + st * vj;
+      out[rj] = -st * vi + ct * vj;
+    }
+  };
+
+  for (const e of edgeList) {
+    toLocal(e[0], e[1], e[2], e[3], v0);
+    toLocal(e[4], e[5], e[6], e[7], v1);
+
+    // ── clip against both half-spaces in local 4-D space ──
+    let t0 = 0, t1 = 1, dead = false;
+    for (let c = 0; c < 2 && !dead; c++) {
+      const g0 = c === 0 ? v0[2] - near : Fa * v0[3] + guard * v0[2];
+      const g1 = c === 0 ? v1[2] - near : Fa * v1[3] + guard * v1[2];
+      if (g0 < 0 && g1 < 0) { dead = true; break; }
+      if (g0 < 0) t0 = Math.max(t0, g0 / (g0 - g1));
+      else if (g1 < 0) t1 = Math.min(t1, g0 / (g0 - g1));
+    }
+    if (dead || t0 >= t1) continue;
+
+    const ar = v0[0] + (v1[0] - v0[0]) * t0, au = v0[1] + (v1[1] - v0[1]) * t0;
+    const af = v0[2] + (v1[2] - v0[2]) * t0, aa = v0[3] + (v1[3] - v0[3]) * t0;
+    const br = v0[0] + (v1[0] - v0[0]) * t1, bu = v0[1] + (v1[1] - v0[1]) * t1;
+    const bf = v0[2] + (v1[2] - v0[2]) * t1, ba = v0[3] + (v1[3] - v0[3]) * t1;
+
+    const ia = F / af, ib = F / bf;
+    segs.push({
+      x1: ar * ia, y1: au * ia, w1: aa * (Fa / af),
+      x2: br * ib, y2: bu * ib, w2: ba * (Fa / bf),
+      depth: (af + bf) * 0.5,
+      // Two ways to read the same wall: by the axis the EDGE runs along (4
+      // colours) or by which way the SURFACE it bounds faces (8 colours).
+      col: cfg.wallColor === 'axis' ? e[8] : e[9],
+      goal: e[10],
+    });
+  }
+  return segs;
+}
+
+/** maze + pose  →  retina-space segments, sorted far-to-near. */
+function buildScene(maze, nav, goalCell, cfg) {
+  // Mid-step the player straddles two cells, so show the union of what each
+  // can see.  Otherwise the visible set would snap at the moment of arrival
+  // and geometry would pop in a step behind the movement.
+  let cells = visibleCellsFor(maze, nav.cell, cfg.sightDepth, cfg.xray);
+  const mv = nav.anim && nav.anim.kind === 'move' ? nav.anim.delta : null;
+  if (mv) {
+    const dest = [nav.cell[0] + mv[0], nav.cell[1] + mv[1], nav.cell[2] + mv[2], nav.cell[3] + mv[3]];
+    if (maze.inBounds(dest)) {
+      const seen = new Set(cells.map(c => maze.idx(c)));
+      cells = cells.slice();
+      for (const c of visibleCellsFor(maze, dest, cfg.sightDepth, cfg.xray)) {
+        if (!seen.has(maze.idx(c))) { seen.add(maze.idx(c)); cells.push(c); }
+      }
+    }
+  }
+  const edges = collectWallEdges(maze, cells);
+  let list = Array.from(edges.values());
+
+  // Mark the goal if it is inside the visible set.
+  for (const c of cells) {
+    if (c[0] === goalCell[0] && c[1] === goalCell[1] && c[2] === goalCell[2] && c[3] === goalCell[3]) {
+      for (const te of tesseractEdges(goalCell)) list.push(te);
+      break;
+    }
+  }
+
+  // X-ray deliberately draws through walls, so hidden-line removal would
+  // undo the whole point of it; with line of sight the walls are solid.
+  const pose = nav.pose();
+  if (!cfg.xray && cfg.opaque) list = hideOccludedEdges(maze, list, pose.pos);
+
+  const segs = projectEdges(list, pose, cfg);
+  segs.sort((a, b) => b.depth - a.depth);      // painter's order by forward depth
+  return segs;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LAYER 4 — STEREO RENDERER
+   ---------------------------------------------------------------------------
+   Draws retina-space segments to a canvas.  The retina's third axis (sw, i.e.
+   ana) becomes stereo depth: the zero-parallax plane sits at sw = 0, so ana
+   recedes behind the screen and kata pops out in front of it.
+   Off-axis projection — parallel eye vectors with asymmetric frusta — so
+   there is no keystone distortion and vertical parallax stays exactly zero.
+
+   Knows nothing about mazes, cells or the 4th dimension by name; it just
+   renders a 3-D line soup in stereo.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const NBUCKET = 10;
+
+class StereoRenderer {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.dpr = 1;
+  }
+
+  resize() {
+    const r = this.canvas.getBoundingClientRect();
+    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.canvas.width = Math.max(2, Math.round(r.width * this.dpr));
+    this.canvas.height = Math.max(2, Math.round(r.height * this.dpr));
+    this.w = r.width; this.h = r.height;
+  }
+
+  render(segs, cfg) {
+    const ctx = this.ctx, W = this.w, H = this.h;
+    this.lastPanes = [{ x: 0, y: 0, w: W, h: H }];
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+    ctx.lineCap = 'round';
+
+    // Bucket by (colour, depth band) so each bucket is a single stroke call
+    // instead of one per segment.  The highlight colour is the slot one past
+    // the end of the palette, so the palette can be any length.
+    const buckets = new Map();
+    const far = cfg.sightDepth + 1;
+    const hi = (cfg.palette || AXIS_RGB).length;
+    for (const s of segs) {
+      const f = Math.min(s.depth / far, 1);
+      const band = Math.min(NBUCKET - 1, (f * NBUCKET) | 0);
+      const key = (s.goal ? hi : s.col) * NBUCKET + band;
+      let arr = buckets.get(key);
+      if (!arr) { arr = []; buckets.set(key, arr); }
+      arr.push(s);
+    }
+    const order = Array.from(buckets.keys()).sort((a, b) => (b % NBUCKET) - (a % NBUCKET));
+
+    if (cfg.mode === 'anaglyph') {
+      ctx.globalCompositeOperation = 'lighter';
+      this._eye(order, buckets, cfg, { x: 0, y: 0, w: W, h: H }, -cfg.sep, 'red');
+      this._eye(order, buckets, cfg, { x: 0, y: 0, w: W, h: H }, +cfg.sep, 'cyan');
+      ctx.globalCompositeOperation = 'source-over';
+    } else if (cfg.mode === 'mono') {
+      this._eye(order, buckets, cfg, { x: 0, y: 0, w: W, h: H }, 0, null);
+    } else {
+      // Square panes, side by side, centred.  Pane width matters physically:
+      // for WALL-EYED viewing the lines of sight stay parallel, so two
+      // matching points can never be further apart than the viewer's pupils
+      // (~63 mm, about 240 CSS px) or the pair cannot be fused at all.
+      // Cross-eyed has no such ceiling — you can cross as much as you like —
+      // so it defaults wider.
+      const pw = Math.min(cfg.paneWidth, W / 2), ph = Math.min(H, pw);
+      const x0 = (W - 2 * pw) / 2, y0 = (H - ph) / 2;
+      const leftPane  = { x: x0,      y: y0, w: pw, h: ph };
+      const rightPane = { x: x0 + pw, y: y0, w: pw, h: ph };
+      this.lastPanes = [leftPane, rightPane];
+      // Wall-eyed: each eye looks straight ahead, left image on the left.
+      // Cross-eyed: the eyes swap sides so the crossed sightlines land right.
+      const swap = cfg.mode === 'cross';
+      this._eye(order, buckets, cfg, swap ? rightPane : leftPane,  -cfg.sep, null);
+      this._eye(order, buckets, cfg, swap ? leftPane  : rightPane, +cfg.sep, null);
+      ctx.strokeStyle = '#1c2230'; ctx.lineWidth = 1;
+      ctx.strokeRect(x0 + 0.5, y0 + 0.5, pw * 2 - 1, ph - 1);
+      ctx.beginPath(); ctx.moveTo(x0 + pw, y0); ctx.lineTo(x0 + pw, y0 + ph); ctx.stroke();
+      if (cfg.guides) this._guides(leftPane, rightPane);
+    }
+  }
+
+  /** Fusion dots: converge until the two dots merge into a single one. */
+  _guides(a, b) {
+    const ctx = this.ctx;
+    ctx.fillStyle = '#484f58';
+    for (const p of [a, b]) {
+      ctx.beginPath(); ctx.arc(p.x + p.w / 2, p.y + 12, 3, 0, 6.2832); ctx.fill();
+    }
+  }
+
+  _eye(order, buckets, cfg, pane, eyeX, tint) {
+    const ctx = this.ctx;
+    const scale = Math.min(pane.w, pane.h) * 0.5 / cfg.halfExtent;
+    const cx = pane.x + pane.w / 2, cy = pane.y + pane.h / 2;
+    const D = cfg.stereoDist;
+
+    const pal = cfg.palette || AXIS_RGB;
+
+    ctx.save();
+    ctx.beginPath(); ctx.rect(pane.x, pane.y, pane.w, pane.h); ctx.clip();
+
+    for (const key of order) {
+      const arr = buckets.get(key);
+      const colIdx = (key / NBUCKET) | 0, band = key % NBUCKET;
+      const highlight = colIdx >= pal.length;
+      const f = (band + 0.5) / NBUCKET;
+      const fade = Math.pow(1 - f, 0.75);
+      let alpha = 0.12 + 0.88 * fade;
+      let width = 0.55 + 1.15 * fade;
+      if (highlight) { alpha = Math.min(1, alpha + 0.35); width += 0.9; }
+
+      ctx.beginPath();
+      for (const s of arr) {
+        // Off-axis stereo: eye at (eyeX, 0, -D) in retina space, projected
+        // onto the sw = 0 plane.  t = 1 there, so parallax is exactly zero.
+        const t1 = D / (D + s.w1), t2 = D / (D + s.w2);
+        const px1 = eyeX * (1 - t1) + s.x1 * t1, py1 = s.y1 * t1;
+        const px2 = eyeX * (1 - t2) + s.x2 * t2, py2 = s.y2 * t2;
+        ctx.moveTo(cx + px1 * scale, cy - py1 * scale);
+        ctx.lineTo(cx + px2 * scale, cy - py2 * scale);
+      }
+
+      if (tint) {
+        // Anaglyph must sacrifice hue: encode only luminance per channel.
+        const lum = highlight ? 255 : 200;
+        ctx.strokeStyle = tint === 'red'
+          ? `rgba(${lum},0,0,${alpha})`
+          : `rgba(0,${lum},${lum},${alpha})`;
+      } else {
+        const c = highlight ? [255, 226, 130] : pal[colIdx];
+        ctx.strokeStyle = `rgba(${c[0]},${c[1]},${c[2]},${alpha})`;
+      }
+      ctx.lineWidth = width;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LAYER 5 — 4-D MAP
+   ---------------------------------------------------------------------------
+   All four axes laid out spatially: a grid of (Z, W) panels, each holding an
+   (X, Y) slice.  Moving in Z steps one panel right; moving in W steps one
+   panel down.  Small triangles inside a cell show its Z/W passages.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function drawMap(canvas, maze, nav, goal, visited, mode) {
+  const s = maze.size, dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const gutter = 6, budget = 380;
+  const cell = Math.max(5, Math.min(14, Math.floor((budget - (s[2] - 1) * gutter) / (s[2] * s[0]))));
+  const panelW = s[0] * cell, panelH = s[1] * cell;
+  const totalW = s[2] * panelW + (s[2] - 1) * gutter;
+  const totalH = s[3] * panelH + (s[3] - 1) * gutter;
+
+  canvas.style.width = totalW + 'px';
+  canvas.style.height = totalH + 'px';
+  canvas.width = Math.round(totalW * dpr);
+  canvas.height = Math.round(totalH * dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, totalW, totalH);
+
+  const showAll = mode === 'full';
+  const here = nav.cell;
+  const c4 = [0, 0, 0, 0];
+
+  for (let w = 0; w < s[3]; w++) {
+    for (let z = 0; z < s[2]; z++) {
+      const ox = z * (panelW + gutter), oy = w * (panelH + gutter);
+
+      ctx.fillStyle = (z === here[2] && w === here[3]) ? '#161d29' : '#0f131a';
+      ctx.fillRect(ox, oy, panelW, panelH);
+
+      for (let y = 0; y < s[1]; y++) {
+        for (let x = 0; x < s[0]; x++) {
+          c4[0] = x; c4[1] = y; c4[2] = z; c4[3] = w;
+          const known = showAll || visited[maze.idx(c4)];
+          const px = ox + x * cell, py = oy + y * cell;
+          if (!known) continue;
+
+          ctx.fillStyle = 'rgba(88,166,255,0.09)';
+          ctx.fillRect(px, py, cell, cell);
+
+          // X/Y walls drawn on the cell borders
+          ctx.strokeStyle = '#39414d';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          if (!maze.isOpen(c4, 0, -1)) { ctx.moveTo(px + .5, py); ctx.lineTo(px + .5, py + cell); }
+          if (!maze.isOpen(c4, 0, +1)) { ctx.moveTo(px + cell - .5, py); ctx.lineTo(px + cell - .5, py + cell); }
+          if (!maze.isOpen(c4, 1, -1)) { ctx.moveTo(px, py + .5); ctx.lineTo(px + cell, py + .5); }
+          if (!maze.isOpen(c4, 1, +1)) { ctx.moveTo(px, py + cell - .5); ctx.lineTo(px + cell, py + cell - .5); }
+          ctx.stroke();
+
+          // Z/W passages: a tick toward the neighbouring panel
+          const m = cell / 2, t = Math.max(1.5, cell * 0.17);
+          const tick = (dx, dy, col) => {
+            ctx.fillStyle = col;
+            ctx.beginPath();
+            ctx.arc(px + m + dx * (m - t * 0.8), py + m + dy * (m - t * 0.8), t, 0, 6.2832);
+            ctx.fill();
+          };
+          if (maze.isOpen(c4, 2, +1)) tick(+1, 0, '#6bb2ff');
+          if (maze.isOpen(c4, 2, -1)) tick(-1, 0, '#3d6ea8');
+          if (maze.isOpen(c4, 3, +1)) tick(0, +1, '#ffd24a');
+          if (maze.isOpen(c4, 3, -1)) tick(0, -1, '#a8862b');
+        }
+      }
+
+      // goal + player markers
+      if (goal[2] === z && goal[3] === w && (showAll || visited[maze.idx(goal)])) {
+        ctx.fillStyle = '#ffd24a';
+        ctx.fillRect(ox + goal[0] * cell + 2, oy + goal[1] * cell + 2, cell - 4, cell - 4);
+      }
+      if (here[2] === z && here[3] === w) {
+        ctx.fillStyle = '#f778ba';
+        ctx.beginPath();
+        ctx.arc(ox + here[0] * cell + cell / 2, oy + here[1] * cell + cell / 2, cell * 0.3, 0, 6.2832);
+        ctx.fill();
+      }
+    }
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   APPLICATION — wiring, input, main loop
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const $ = id => document.getElementById(id);
+
+const renderer = new StereoRenderer($('view'));
+let maze, nav, goal, visited, distToGoal, won = false;
+
+const cfg = {
+  mode: 'wall',
+  focal: 1, near: 0.06, halfExtent: 0.82,
+  sightDepth: 7, sep: 0.06, stereoDist: 2.2, anaScale: 1,
+  animSpeed: 1, guides: true, paneWidth: 240, xray: false,
+  opaque: true, wallColor: 'dir', palette: DIR_RGB,
+};
+
+// Wall-eyed cannot exceed the interocular distance; cross-eyed can be as big
+// as you like.  Swapping mode retargets the pane width unless you have set it
+// yourself, in which case your choice is left alone.
+const PANE_DEFAULT = { wall: 240, cross: 460 };
+let paneTouched = false;
+
+function fovToFocal(deg) { return 1 / Math.tan(deg * Math.PI / 360) * cfg.halfExtent; }
+
+function newMaze(seed) {
+  const n = parseInt($('size').value, 10);
+  const braid = parseInt($('braid').value, 10) / 100;
+  if (seed === undefined) seed = parseInt($('seed').value, 10) || 0;
+  $('seed').value = seed;
+
+  maze = generateMaze([n, n, n, n], seed, braid);
+  const d0 = maze.distances([0, 0, 0, 0]);
+  let best = 0;
+  for (let i = 1; i < maze.count; i++) if (d0[i] > d0[best]) best = i;
+  goal = maze.cellFromIndex(best);
+  distToGoal = maze.distances(goal);
+
+  visited = new Uint8Array(maze.count);
+  nav = new Navigator(maze, [0, 0, 0, 0]);
+  visited[maze.idx(nav.cell)] = 1;
+  nav.onArrive = cell => {
+    visited[maze.idx(cell)] = 1;
+    if (cell.every((v, i) => v === goal[i])) {
+      won = true;
+      $('winsub').textContent =
+        `${nav.steps} steps  ·  shortest was ${d0[maze.idx(goal)]}  ·  seed ${seed}`;
+      $('win').classList.add('show');
+    }
+  };
+  won = false;
+  $('win').classList.remove('show');
+  updateReadout();
+}
+
+function restart() {
+  nav = new Navigator(maze, [0, 0, 0, 0]);
+  visited = new Uint8Array(maze.count);
+  visited[maze.idx(nav.cell)] = 1;
+  nav.onArrive = cell => {
+    visited[maze.idx(cell)] = 1;
+    if (cell.every((v, i) => v === goal[i])) {
+      won = true;
+      $('winsub').textContent = `${nav.steps} steps  ·  seed ${$('seed').value}`;
+      $('win').classList.add('show');
+    }
+  };
+  won = false;
+  $('win').classList.remove('show');
+}
+
+/* ── input ─────────────────────────────────────────────── */
+
+const MOVE_KEYS = {
+  w: [L_FWD, +1], s: [L_FWD, -1],
+  a: [L_RIGHT, -1], d: [L_RIGHT, +1],
+  r: [L_UP, +1], f: [L_UP, -1],
+  t: [L_ANA, +1], g: [L_ANA, -1],
+};
+const TURN_KEYS = {
+  arrowleft:  [L_FWD, L_RIGHT, -1], arrowright: [L_FWD, L_RIGHT, +1],
+  arrowup:    [L_FWD, L_UP, +1],    arrowdown:  [L_FWD, L_UP, -1],
+  e:          [L_FWD, L_ANA, +1],   q:          [L_FWD, L_ANA, -1],
+  z:          [L_RIGHT, L_UP, +1],  x:          [L_RIGHT, L_UP, -1],
+};
+
+window.addEventListener('keydown', ev => {
+  const t = ev.target;
+  // Only a field you can actually type into may swallow the steering keys.
+  // Blanket-ignoring INPUT and SELECT meant that touching any slider or
+  // dropdown silently killed keyboard navigation until you clicked away.
+  if (t && (t.tagName === 'TEXTAREA' ||
+            (t.tagName === 'INPUT' && /^(text|number|search|email|password)$/.test(t.type)))) return;
+  const k = ev.key.toLowerCase();
+  // A focused slider or dropdown still gets the arrows, so it stays operable
+  // by keyboard; letters always steer.
+  if (t && (t.tagName === 'SELECT' || (t.tagName === 'INPUT' && t.type === 'range'))
+      && k.startsWith('arrow')) return;
+  if (MOVE_KEYS[k]) { nav.requestMove(...MOVE_KEYS[k]); ev.preventDefault(); }
+  else if (TURN_KEYS[k]) { nav.requestTurn(...TURN_KEYS[k]); ev.preventDefault(); }
+});
+
+document.querySelectorAll('[data-move]').forEach(b => {
+  const [k, s] = b.dataset.move.split(',').map(Number);
+  b.addEventListener('click', () => { nav.requestMove(k, s); b.blur(); });
+});
+document.querySelectorAll('[data-turn]').forEach(b => {
+  const [i, j, d] = b.dataset.turn.split(',').map(Number);
+  b.addEventListener('click', () => { nav.requestTurn(i, j, d); b.blur(); });
+});
+
+/* ── controls ──────────────────────────────────────────── */
+
+const MODE_HINT = {
+  wall: 'Look <b>through</b> the screen into the distance until the two images drift together and a third appears between them.',
+  cross: 'Cross your eyes slightly until a third image forms in the middle, then let it sharpen.',
+  anaglyph: 'Red lens over the <b>left</b> eye. Hue is spent on the channels, so lines are monochrome here.',
+  mono: 'No stereo: the 4th dimension collapses onto the picture plane. Useful for comparison.',
+};
+
+function bindSlider(id, valId, fmt, apply) {
+  const el = $(id);
+  const upd = () => { const v = +el.value; $(valId).innerHTML = fmt(v); apply(v); };
+  el.addEventListener('input', upd); upd();
+}
+
+$('mode').addEventListener('change', () => {
+  cfg.mode = $('mode').value;
+  $('modehint').innerHTML = MODE_HINT[cfg.mode];
+  const sbs = cfg.mode === 'wall' || cfg.mode === 'cross';
+  $('pane').parentElement.style.display = sbs ? '' : 'none';
+  if (sbs && !paneTouched && PANE_DEFAULT[cfg.mode] !== +$('pane').value) {
+    $('pane').value = PANE_DEFAULT[cfg.mode];
+    $('pane').dispatchEvent(new Event('input'));
+  }
+});
+$('mode').dispatchEvent(new Event('change'));
+
+bindSlider('fov', 'fovv', v => v + '&deg;', v => { cfg.focal = fovToFocal(v); });
+bindSlider('depth', 'depthv', v => v, v => { cfg.sightDepth = v; });
+bindSlider('pane', 'panev', v => v + ' px', v => { cfg.paneWidth = v; });
+$('pane').addEventListener('pointerdown', () => { paneTouched = true; });
+bindSlider('sep', 'sepv', v => (v / 1000).toFixed(3), v => { cfg.sep = v / 1000; });
+bindSlider('sdepth', 'sdepthv', v => (v / 100).toFixed(2) + '&times;', v => { cfg.anaScale = v / 100; });
+bindSlider('anim', 'animv', v => (v / 100).toFixed(1) + '&times;', v => { cfg.animSpeed = v / 100; });
+bindSlider('braid', 'braidv', v => v + '%', () => {});
+
+$('guides').addEventListener('change', () => { cfg.guides = $('guides').value === 'on'; });
+
+const XRAY_HINT = {
+  solid: 'Every wall face occludes: you see only what you have a clear straight 4-D line to, ' +
+         'so a wall you are facing draws as just its own outline. Occlusion runs along <b>forward</b> ' +
+         '&mdash; ana is a sideways direction of the 4-D visual field, so it never hides anything.',
+  los: 'Cells you have no sightline to are dropped, but within what remains every edge is drawn, ' +
+       'including the far side of the wall in front of you.',
+  xray: 'Draws every wall within sight range, including corridors round corners that you could not really see.',
+};
+$('xray').addEventListener('change', () => {
+  const v = $('xray').value;
+  cfg.xray = v === 'xray';
+  cfg.opaque = v === 'solid';
+  $('xrayhint').innerHTML = XRAY_HINT[v];
+});
+$('xray').dispatchEvent(new Event('change'));
+
+const WALLCOL_HINT = {
+  dir: 'One colour per wall <b>orientation</b> &mdash; eight of them, since a wall face in 4-D ' +
+       'looks out along one of &plusmn;X &plusmn;Y &plusmn;Z &plusmn;W. Related hues per axis: ' +
+       'red/orange X, green/teal Y, blue/violet Z, yellow/pink W.',
+  axis: 'One colour per <b>axis the edge runs along</b> &mdash; four of them: red X, green Y, ' +
+        'blue Z, yellow W.',
+};
+$('wallcol').addEventListener('change', () => {
+  cfg.wallColor = $('wallcol').value;
+  cfg.palette = cfg.wallColor === 'axis' ? AXIS_RGB : DIR_RGB;
+  $('wallcolhint').innerHTML = WALLCOL_HINT[cfg.wallColor];
+  const names = cfg.wallColor === 'axis' ? AXIS_NAME : DIR_NAME;
+  $('wallkey').innerHTML = cfg.palette.map((c, i) =>
+    `<span><i style="background:rgb(${c[0]},${c[1]},${c[2]})"></i>${names[i]}</span>`).join('');
+  if (maze) updateReadout();                                  // repaint the legend
+});
+$('wallcol').dispatchEvent(new Event('change'));
+
+// Hand focus back to the page once a control is done, so the arrow keys go
+// back to steering instead of nudging whatever was last touched.
+document.querySelectorAll('.sidebar select, .sidebar input[type=range]')
+  .forEach(el => el.addEventListener('change', () => el.blur()));
+$('newmaze').addEventListener('click', () => newMaze((Math.random() * 100000) | 0));
+$('restart').addEventListener('click', restart);
+$('wingo').addEventListener('click', () => newMaze((Math.random() * 100000) | 0));
+$('size').addEventListener('change', () => newMaze());
+$('braid').addEventListener('change', () => newMaze());
+$('seed').addEventListener('change', () => newMaze());
+$('mapmode').addEventListener('change', () => {
+  $('mapwrap').classList.toggle('hidden', $('mapmode').value === 'off');
+});
+
+/* ── readouts ──────────────────────────────────────────── */
+
+// The compass doubles as the wall-colour legend, so it is painted from
+// whichever palette the view is currently using: "fwd -> +X" comes up in the
+// same colour as the walls that face +X.
+function axSpan(vec) {
+  const [a, s] = Navigator.axisOf(vec);
+  const c = cfg.palette === AXIS_RGB ? AXIS_RGB[a] : DIR_RGB[a * 2 + (s > 0 ? 1 : 0)];
+  return `<span style="color:rgb(${c[0]},${c[1]},${c[2]})">${s > 0 ? '+' : '\u2212'}${AXIS_NAME[a]}</span>`;
+}
+
+function updateReadout() {
+  $('rcell').textContent = '(' + nav.cell.join(', ') + ')';
+  $('rsteps').textContent = nav.steps;
+  const d = distToGoal[maze.idx(nav.cell)];
+  $('rdist').textContent = d >= 0 ? d + ' cells' : '\u2014';
+  let vn = 0; for (let i = 0; i < visited.length; i++) vn += visited[i];
+  $('rvisit').textContent = vn + ' / ' + maze.count;
+
+  $('compass').innerHTML =
+    '<div class="hd">your axes</div>' +
+    LOCAL_NAME.map((n, k) => `${n.padEnd(5, '\u00a0')} \u2192 ${axSpan(nav.basis[k])}`).join('<br>');
+
+  $('goalinfo').innerHTML =
+    `goal <b>(${goal.join(', ')})</b><br>` +
+    `you&nbsp; (${nav.cell.join(', ')})<br>` +
+    `<span style="color:#6e7681">${d >= 0 ? d + ' cells away' : ''}</span>`;
+
+  $('mapsub').textContent = `Z \u2192   W \u2193`;
+}
+
+/* ── main loop ─────────────────────────────────────────── */
+
+let lastCell = '', lastT = performance.now();
+
+function frame(now) {
+  const dt = Math.min((now - lastT) / 1000, 0.1);
+  lastT = now;
+
+  nav.update(dt, cfg.animSpeed);
+
+  const segs = buildScene(maze, nav, goal, cfg);
+  renderer.render(segs, cfg);
+
+  const key = nav.cell.join(',') + '|' + nav.steps;
+  if (key !== lastCell) {
+    lastCell = key;
+    updateReadout();
+    const mm = $('mapmode').value;
+    if (mm !== 'off') drawMap($('map'), maze, nav, goal, visited, mm);
+  }
+  requestAnimationFrame(frame);
+}
+
+function onResize() { renderer.resize(); }
+window.addEventListener('resize', onResize);
+
+newMaze(1);
+onResize();
+drawMap($('map'), maze, nav, goal, visited, $('mapmode').value);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
