@@ -44,7 +44,13 @@ because your eye axes have to stay parallel or diverge slightly — they cannot
 splay outward. Cross-eyed has no such limit. The **pane width** therefore
 defaults to 240 px in wall-eyed and 460 px in cross-eyed, and re-targets
 automatically when you switch modes — *unless* you have moved the slider
-yourself, in which case your choice is respected from then on.
+yourself, in which case your choice is respected from then on. On a screen too
+narrow for the default, it re-targets to half the width instead, which is why
+the pair fuses on a phone without touching anything.
+
+Pane *height* is free: it costs nothing optically and simply widens the
+vertical field, so the panes take whatever height the window gives them, up to
+1.6× their width.
 
 ## Controls
 
@@ -60,11 +66,38 @@ yourself, in which case your choice is respected from then on.
 Every turn is exactly 90°, animated. **Turn ana** swings your forward axis into
 the fourth dimension: what was ana becomes straight ahead, and what was ahead
 becomes kata. That is the move that has no 3-D analogue and the one worth
-practising first — the sidebar's Move section has clickable pads for all sixteen
-actions if you'd rather not learn the keys yet.
+practising first — the Move section has clickable pads for all sixteen actions
+if you'd rather not learn the keys yet.
 
 Walking into a wall produces a short bump animation rather than silence, so a
 missed input is distinguishable from a blocked one.
+
+### On a phone
+
+The layout goes single-column below 820px: the maze on top, the sixteen
+movement and turn pads on a deck underneath it, and everything else behind the
+**☰** button as a slide-out drawer. Turn the phone sideways and the deck moves
+to a column on the right instead, because in landscape height is the scarce
+axis and the view should keep it. The 4-D map scales itself to the view rather
+than sitting there at a fixed size.
+
+**All four display modes work on a phone, and it starts wall-eyed like the
+desktop does.** Stereo is not a compromise at phone size — it is arguably
+easier there. The pair automatically takes half the screen width, so on a
+typical phone the two images end up only ~35mm apart, comfortably inside the
+~63mm wall-eyed limit, and cross-eyed has no limit at all. Hold the phone at a
+normal reading distance and look *through* it.
+
+Do try mono once to see what it costs you: **in mono the fourth dimension is
+invisible**, because ana and forward both collapse into "things get smaller",
+which is exactly the ambiguity the stereo display exists to resolve. In mono
+the 4-D map is your only way to tell where W went.
+
+One thing that changes in stereo on a small screen: **the 4-D map stands
+down**. An overlay drawn across a fused pair lands in one eye only, and the
+resulting rivalry is far more distracting than a missing map, so the map takes
+whatever margin the panes leave and hides itself when there isn't one. Narrow
+the panes, or switch to mono or red/cyan, if you want it back.
 
 ### Sidebar
 
@@ -83,7 +116,7 @@ missed input is distinguishable from a blocked one.
 | Sight | Solid walls / line-of-sight wireframe / x-ray. See below. |
 | Wall colour | Eight colours by surface direction, or four by edge axis. See below. |
 | Fusion guides | The two convergence dots. |
-| Reveal (4D map overlay) | Fog of war for the **map** only — cells you have stood in / the whole maze / hide it. It does not change what the 3-D view shows. |
+| Reveal (4D map overlay) | Fog of war for the **map** only — cells you have stood in / the whole maze / hide it. It does not change what the 3-D view shows. In a stereo mode the map keeps out of the panes, and hides itself if there is no room beside them. |
 
 ## Sight: solid walls, wireframe, x-ray
 
@@ -196,7 +229,7 @@ it is and where the non-obvious correctness constraints live.
 
     run-tests.bat           # both suites
     node test-core.js       # 96 tests, layers 1-3, no browser
-    node test-render.js     # 65 tests, Playwright, the whole app in a real browser
+    node test-render.js     # 98 tests, Playwright, the whole app in a real browser
 
 `test-core.js` slices layers 1–3 straight out of the HTML and evaluates them, so
 there is no duplicated copy of the logic to drift out of sync. It covers maze
@@ -216,7 +249,12 @@ the fusing limit, anaglyph channel balance, that ana really does become
 parallax, that solid walls draw less than the wireframe which draws less than
 x-ray, that the eight-colour palette reaches the actual pixels, that the map's
 reveal setting does *not* change the 3-D view, keyboard navigation, wall
-blocking, and an end-to-end shortest-path solve that triggers the win state.
+blocking, an end-to-end shortest-path solve that triggers the win state, and
+the mobile layout in a real phone context with touch — deck placement in both
+orientations, the drawer, tapping the pads, touch-target sizes, that a fusable
+stereo pair really is laid out at phone size, that the map never overlaps a
+stereo pane, and that every keyboard action has a pad button, since a phone has
+no keyboard.
 
 `diag-view.js` and `diag-maze.js` are visual diagnostics — they render scenes
 whose correct appearance is known in advance (a straight hypercorridor, a

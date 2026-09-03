@@ -10,7 +10,7 @@ no dependencies, opened directly from disk. Alongside it:
 |---|---|
 | `4d-maze.html` | The whole application, five layers (below). |
 | `test-core.js` | 96 headless tests of layers 1–3, extracted from the HTML. |
-| `test-render.js` | 65 Playwright tests of the real page in a real browser. |
+| `test-render.js` | 98 Playwright tests of the real page in a real browser, desktop and phone. |
 | `diag-view.js` | Visual diagnostics with a *known-correct* expected appearance. |
 | `diag-maze.js` | Renders a real maze at full pane resolution, sweeping the near plane. |
 | `README.md` | User-facing documentation. |
@@ -38,6 +38,10 @@ no dependencies, opened directly from disk. Alongside it:
 - Controls for FOV, sight range, pane width, stereo separation, ana
   exaggeration, animation speed, map mode, and fusion guides.
 - Status readout: current cell, steps, passage distance to goal, visited count.
+- **Responsive**: on a phone the maze gets the screen, the sixteen action pads
+  form a deck beside or below it, and the settings become a drawer. Everything
+  is reachable by touch — there is no keyboard-only action, and every display
+  mode including both stereoscopes works at phone size.
 
 ## The central design decision: where the fourth dimension goes
 
@@ -304,14 +308,22 @@ vertical parallax and no keystone distortion**, which toed-in cameras would not.
 
 Mode dispatch in `render()`:
 
-- **wall / cross** — two square panes side by side, centred, each
-  `min(cfg.paneWidth, W/2)` wide. Cross-eyed simply swaps which pane gets which
-  eye. A 1px divider and two grey fusion dots complete the layout.
-  `renderer.lastPanes` is exposed for the test suite.
+- **wall / cross** — two panes side by side, centred, each
+  `min(cfg.paneWidth, W/2)` wide and `min(H, width × PANE_ASPECT)` tall.
+  Cross-eyed simply swaps which pane gets which eye. A 1px divider and two grey
+  fusion dots complete the layout. `renderer.lastPanes` is exposed — the test
+  suite reads it, and so does the map overlay, which has to keep out of it.
 - **anaglyph** — one full-viewport image drawn twice with
   `globalCompositeOperation = 'lighter'`, pure red for the left eye and pure
   cyan for the right, luminance-only line colours so the channels stay clean.
 - **mono** — one full-viewport image with `eyeX = 0`.
+
+**Pane height is not a constraint, only width is.** `scale` is
+`min(pane.w, pane.h) × 0.5 / halfExtent`, so widening the pane vertically just
+reveals more vertical field — no distortion, no change to the horizontal FOV
+the slider controls, and matching points stay exactly one pane width apart, so
+fusion is untouched. `PANE_ASPECT = 1.6` caps it only because a pane far taller
+than it is wide is awkward to fuse.
 
 **Pane width and the fusing ceiling.** Wall-eyed viewing requires matching
 points in the two images to be no further apart than the interocular distance
@@ -386,6 +398,76 @@ player's cell and the goal are marked. Modes: `visited` (fog of war), `full`,
   focused range/select keep the arrow keys so it stays operable, and blurs
   sliders and selects on `change`.
 
+## Responsive layout
+
+Three layouts, one DOM. `MOBILE_Q` in the script and the `@media` query in the
+stylesheet must stay in step — the CSS restyles, the script relocates.
+
+| Screen | Shape |
+|---|---|
+| Desktop (default) | Sidebar column, then the view. The control deck lives in the sidebar's Move section. |
+| Narrow (`max-width: 820px`) | Top bar, view, control deck under it. Sidebar becomes a slide-out drawer over the view. |
+| Landscape phone (`max-height: 560px and pointer: coarse`) | Same, but the deck is a column to the right of the view — in landscape height is the scarce axis. |
+
+The landscape clause is why the query is not just a width: a phone on its side
+is over 820 CSS px wide and nowhere near tall enough for a scrolling sidebar.
+
+**The control deck is one node with two homes.** `applyLayout()` moves `#deck`
+between `#movesec` and `#deckhome` when the query flips. Rendering the pads
+twice would have been less code, but two copies both match
+`[data-move]` / `[data-turn]`, so every tap would fire twice and the two copies
+could drift apart. One node cannot.
+
+**The drawer is an overlay, not a layout column.** Opening it never reflows the
+canvas, so it costs no resize and no re-render. Widening the window past the
+breakpoint force-closes it, or it would be stranded open and invisible.
+
+Other things the small screen forced:
+
+- **Every action needs a pad.** A phone has no keyboard, so a keyboard-only
+  action is an unreachable action. The turn pad was missing its second roll
+  button — reachable with `X`, and nowhere at all on a phone. Both rolls now
+  sit in the corners the cross leaves free, and a test walks `MOVE_KEYS` /
+  `TURN_KEYS` asserting each has a matching `data-move` / `data-turn`.
+- **The map overlay is sized from the view**, not fixed at 380px: bounded by
+  *both* 42 % of the width and 45 % of the height, since it is roughly square
+  and would otherwise tower over a landscape phone. Its minimum cell size also
+  had to come down from 5px to 3px, which only ever binds on a small screen.
+- **The map must never be drawn across a stereo pair.** An overlay on top of a
+  fused pair appears to one eye only, and binocular rivalry is far more
+  disruptive than a missing map. So in a two-pane mode `mapBudget()` also
+  bounds it by the margin the panes leave -- beside them on a wide screen,
+  underneath them on a phone -- and `redrawMap` hides it outright below
+  `MAP_MIN`, revealing a sidebar hint that says why. In mono and anaglyph the
+  "pane" is the whole viewport and the rule correctly does not apply: there is
+  nothing to fuse, so there is nothing to rival.
+- **Pane height is free, so the panes take it.** `scale` is set by the pane's
+  smaller dimension, so a taller pane simply shows more vertical field; squaring
+  them off threw away most of the screen, and on a phone -- where the pair is
+  only half the width -- it left a postage stamp in a tall black frame. Height
+  now runs to `PANE_ASPECT` (1.6) times the width. This is also what made the
+  map fit underneath on a phone rather than on top.
+- **Pane width re-targets to what fits.** The renderer already clamps to half
+  the view, but leaving the slider reading "460 px" while rendering 206 is a
+  readout that lies; `retargetPane()` clamps the stored value too, and re-runs
+  on resize so a rotation fixes itself.
+- **Hover is gated behind `@media (hover: hover)`.** On a touch screen a
+  `:hover` rule sticks to the last thing tapped.
+- Buttons get `touch-action: manipulation` (no 300ms delay, no double-tap
+  zoom) and `user-select: none`; the canvas gets `touch-action: none` so
+  gestures over the maze do not scroll or pinch the page.
+- `#view` is absolutely positioned rather than `height: 100%`. Its parent's
+  height now comes from `flex` in a *column* container, and percentage heights
+  resolve against that unreliably.
+- **Stereo is the phone default too**, and nothing about the display is
+  device-specific. It was briefly mono, on the theory that free-viewing while
+  tapping buttons is a poor first impression; that was the wrong trade. In mono
+  the fourth dimension collapses into the same "things get smaller" cue as
+  forward distance, which is precisely the ambiguity the whole projection
+  exists to resolve — a mono default ships a 4-D maze whose 4th dimension you
+  cannot see. What phone size actually needs is that the pair *fits*, which the
+  pane rules below deliver with no mobile branch at all.
+
 ## Known quirks (not bugs)
 
 - **Identical segment counts across sizes.** A 4⁴ and a 7⁴ maze both report 27
@@ -420,7 +502,7 @@ player's cell and the goal are marked. Modes: `visited` (fog of war), `full`,
 
     run-tests.bat           # both suites, with NODE_PATH wired to the npx cache
     node test-core.js       # 96 tests, no browser
-    node test-render.js     # 65 tests, Playwright
+    node test-render.js     # 98 tests, Playwright
 
 `test-core.js` covers index round-trips, passage symmetry, boundary
 containment, connectivity, perfect-maze edge count for 3⁴–7⁴, seed determinism,
@@ -457,6 +539,17 @@ keyboard navigation, wall blocking, an end-to-end shortest-path solve through
 the real `Navigator` that triggers the win state, and a settings sweep over
 sizes/fov/depth/sdepth/sep/braid asserting finite geometry and a positive stereo
 divisor throughout.
+
+The suite then opens a second, touch-enabled context emulating a phone and
+checks the mobile build for real: the deck relocating under the view, the pads
+existing exactly once, the top bar / view / deck stacking order, the view
+keeping the majority of the height, a genuinely fusable stereo pair at phone
+size (adjacent, equal, inside the screen and inside the wall-eyed limit), the
+map overlay staying inside the view and never overlapping a pane, 44px touch
+targets, the drawer opening from the burger and closing on
+both an outside tap and Escape, taps on the pads actually driving the
+Navigator, landscape moving the deck to a side column, and widening back to a
+desktop window returning the deck to the sidebar with no drawer stranded open.
 
 Playwright is not a project dependency; the browser suite is run with
 `NODE_PATH` pointed at an npx cache.

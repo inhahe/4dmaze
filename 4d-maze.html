@@ -11,6 +11,7 @@ body {
   background: #0d1117; color: #c9d1d9;
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   display: flex; height: 100vh; height: 100dvh; overflow: hidden;
+  overscroll-behavior: none;
 }
 
 /* ── Sidebar ───────────────────────────────────────────── */
@@ -58,11 +59,19 @@ button {
   background: #21262d; color: #c9d1d9; border: 1px solid #30363d;
   border-radius: 6px; padding: 7px 10px; font-size: 12px;
   font-family: inherit; cursor: pointer; transition: background .15s, border-color .15s;
+  /* Touch: kill the 300ms tap delay and double-tap zoom, and stop rapid
+     tapping from selecting the button captions. */
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  user-select: none; -webkit-user-select: none;
 }
-button:hover { background: #30363d; border-color: #8b949e; }
 button:active { background: #161b22; }
 button.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; font-weight: 600; }
-button.primary:hover { background: #388bfd; border-color: #388bfd; }
+/* Hover styling only where there is a real pointer — on a touch screen a
+   :hover rule sticks to the last button tapped. */
+@media (hover: hover) {
+  button:hover { background: #30363d; border-color: #8b949e; }
+  button.primary:hover { background: #388bfd; border-color: #388bfd; }
+}
 
 /* ── Slider rows ───────────────────────────────────────── */
 .slider-row { margin-bottom: 9px; }
@@ -84,7 +93,8 @@ input[type=range]::-moz-range-thumb { width: 13px; height: 13px; border: none;
 .pad .spacer { visibility: hidden; }
 .pad-caption { font-size: 10px; color: #6e7681; margin: 8px 0 5px; text-transform: uppercase;
   letter-spacing: .7px; }
-.pad-caption:first-child { margin-top: 0; }
+.padgroup { min-width: 0; }
+.padgroup:first-child .pad-caption { margin-top: 0; }
 
 /* ── Status readout ────────────────────────────────────── */
 .readout { font-size: 11px; font-family: ui-monospace, Consolas, monospace; line-height: 1.7; }
@@ -102,9 +112,19 @@ input[type=range]::-moz-range-thumb { width: 13px; height: 13px; border: none;
 #wallkey span { display: inline-flex; align-items: center; gap: 4px; }
 #wallkey i { width: 11px; height: 2px; border-radius: 1px; }
 
+/* ── Stage: the view, plus the control deck when it lives under it ─────── */
+.stage { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.topbar { display: none; }
+.iconbtn { padding: 0; width: 40px; height: 36px; font-size: 17px; line-height: 1; flex: none; }
+.scrim { display: none; }
+#sbclose { display: none; }
+
 /* ── Viewport ──────────────────────────────────────────── */
-.viewport { flex: 1; position: relative; background: #000; min-width: 0; }
-#view { display: block; width: 100%; height: 100%; }
+.viewport { flex: 1; position: relative; background: #000; min-width: 0; min-height: 0; }
+/* Absolute rather than height:100% — the parent's height comes from `flex`,
+   which is a used value that percentage heights resolve against unreliably. */
+#view { display: block; position: absolute; inset: 0; width: 100%; height: 100%;
+  touch-action: none; }                    /* no pinch/scroll gestures over the maze */
 
 .overlay { position: absolute; pointer-events: none;
   font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
@@ -118,7 +138,7 @@ input[type=range]::-moz-range-thumb { width: 13px; height: 13px; border: none;
 
 #mapwrap { position: absolute; right: 12px; bottom: 12px; pointer-events: none;
   background: rgba(13,17,23,.82); border: 1px solid #21262d; border-radius: 8px; padding: 8px; }
-#mapwrap.hidden { display: none; }
+#mapwrap.hidden, #mapwrap.nofit { display: none; }
 #mapcap { font-size: 9px; color: #6e7681; text-transform: uppercase; letter-spacing: .8px;
   margin-bottom: 5px; font-family: ui-monospace, Consolas, monospace; display: flex;
   justify-content: space-between; gap: 12px; }
@@ -135,12 +155,102 @@ input[type=range]::-moz-range-thumb { width: 13px; height: 13px; border: none;
 
 .badge { font-size: 9px; padding: 1px 5px; border-radius: 4px; background: #21262d;
   color: #8b949e; font-weight: 600; letter-spacing: .4px; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MOBILE  —  the view, a control deck next to it, settings in a drawer.
+   The query must match MOBILE_Q in the script, which relocates the single
+   #deck node between its two homes whenever the query flips.
+
+   The second clause catches a phone in landscape: it is wider than 820px in
+   CSS pixels but far too short for the desktop layout, whose sidebar is a
+   tall scrolling column.
+   ═══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 820px), (max-height: 560px) and (pointer: coarse) {
+  body { flex-direction: column; }
+
+  .topbar {
+    display: flex; align-items: center; gap: 10px; flex: none;
+    padding: 7px 9px; padding-top: calc(7px + env(safe-area-inset-top));
+    background: #0d1117; border-bottom: 1px solid #21262d;
+  }
+  .topbar .tb-title { font-size: 14px; font-weight: 700; letter-spacing: -0.3px;
+    background: linear-gradient(135deg, #58a6ff, #f778ba, #ffd24a);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .topbar .tb-stat { margin-left: auto; font-size: 11px; color: #8b949e;
+    font-family: ui-monospace, Consolas, monospace; font-variant-numeric: tabular-nums; }
+
+  /* The sidebar becomes an overlay drawer.  Overlay, not a layout column, so
+     opening it never reflows the canvas and never costs a re-render. */
+  .sidebar {
+    position: fixed; top: 0; bottom: 0; left: 0; z-index: 30;
+    width: min(330px, 86vw); min-width: 0; border-right: 1px solid #30363d;
+    padding-top: calc(16px + env(safe-area-inset-top));
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    transform: translateX(-101%); transition: transform .22s ease;
+    box-shadow: 0 0 34px rgba(0, 0, 0, .65);
+  }
+  .sidebar.open { transform: none; }
+  .sb-head { display: flex; align-items: flex-start; gap: 10px; }
+  .sb-head h1 { flex: 1; min-width: 0; }
+  #sbclose { display: block; }
+
+  /* The deck has moved out from under this heading, so the section is an
+     empty stub.  Hiding it here keeps the rule next to the layout it belongs
+     to; the script's relocation is what makes it true. */
+  #movesec { display: none; }
+
+  .scrim { display: block; position: fixed; inset: 0; z-index: 29;
+    background: rgba(1, 4, 9, .62); opacity: 0; pointer-events: none;
+    transition: opacity .22s ease; }
+  .scrim.open { opacity: 1; pointer-events: auto; }
+
+  /* Two pads side by side: a phone is tall, but every row spent on buttons
+     is a row taken off the maze. */
+  #deck {
+    flex: none; display: flex; gap: 8px; background: #0d1117;
+    border-top: 1px solid #21262d; padding: 8px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
+  }
+  #deck .padgroup { flex: 1; }
+  #deck .pad-caption { margin: 0 0 5px; text-align: center; }
+  #deck .pad { gap: 6px; }
+  #deck .pad button { min-height: 44px; padding: 4px 1px; font-size: 11px; }
+  #deck .pad button small { font-size: 9px; }
+  #deck .hint { display: none; }
+
+  /* The in-view overlays shrink; the goal readout moves to the top bar,
+     where it does not sit on top of the maze at all. */
+  #compass { top: 8px; left: 10px; font-size: 10px; line-height: 1.5; }
+  #goalinfo { display: none; }
+  #mapwrap { right: 8px; bottom: 8px; padding: 5px; }
+  #win h2 { font-size: 24px; }
+}
+
+/* Landscape phone: height is the scarce axis, so the deck moves to a column
+   beside the view instead of eating a third of it from the bottom. */
+@media (max-height: 560px) and (pointer: coarse) and (orientation: landscape) {
+  .stage { flex-direction: row; }
+  #deckhome { display: flex; min-width: 0; }
+  #deck {
+    flex-direction: column; gap: 6px; width: 190px; overflow-y: auto;
+    border-top: none; border-left: 1px solid #21262d;
+    padding: 6px; padding-right: calc(6px + env(safe-area-inset-right));
+  }
+  #deck .padgroup { flex: none; }
+  #deck .pad { gap: 5px; }
+  #deck .pad button { min-height: 36px; font-size: 10px; }
+  #deck .pad button small { display: none; }
+  .topbar { padding-top: 6px; padding-bottom: 6px; }
+}
 </style>
 </head>
 <body>
 
-<div class="sidebar">
-  <h1>4D Maze<span>a hypercubic labyrinth, seen in stereo</span></h1>
+<div class="sidebar" id="sidebar">
+  <div class="sb-head">
+    <h1>4D Maze<span>a hypercubic labyrinth, seen in stereo</span></h1>
+    <button class="iconbtn" id="sbclose" aria-label="Close settings">&times;</button>
+  </div>
 
   <div class="section">
     <div class="section-title"><div class="left"><span class="dot" style="background:#58a6ff"></span>Display</div></div>
@@ -154,37 +264,48 @@ input[type=range]::-moz-range-thumb { width: 13px; height: 13px; border: none;
     <div class="hint" id="modehint"></div>
   </div>
 
-  <div class="section">
+  <!-- The Move section is only the deck's home on desktop; on a narrow screen
+       the script moves #deck out to #deckhome under the view. -->
+  <div class="section" id="movesec">
     <div class="section-title"><div class="left"><span class="dot" style="background:#f778ba"></span>Move</div></div>
-    <div class="pad-caption">Translate</div>
-    <div class="pad">
-      <button class="spacer"></button>
-      <button data-move="1,+1">up<small>R</small></button>
-      <button class="spacer"></button>
-      <button data-move="0,-1">left<small>A</small></button>
-      <button data-move="2,+1">fwd<small>W</small></button>
-      <button data-move="0,+1">right<small>D</small></button>
-      <button data-move="3,-1">kata<small>G</small></button>
-      <button data-move="2,-1">back<small>S</small></button>
-      <button data-move="3,+1">ana<small>T</small></button>
-      <button class="spacer"></button>
-      <button data-move="1,-1">down<small>F</small></button>
-      <button class="spacer"></button>
+    <div id="deck">
+      <div class="padgroup">
+        <div class="pad-caption">Translate</div>
+        <div class="pad">
+          <button class="spacer"></button>
+          <button data-move="1,+1">up<small>R</small></button>
+          <button class="spacer"></button>
+          <button data-move="0,-1">left<small>A</small></button>
+          <button data-move="2,+1">fwd<small>W</small></button>
+          <button data-move="0,+1">right<small>D</small></button>
+          <button data-move="3,-1">kata<small>G</small></button>
+          <button data-move="2,-1">back<small>S</small></button>
+          <button data-move="3,+1">ana<small>T</small></button>
+          <button class="spacer"></button>
+          <button data-move="1,-1">down<small>F</small></button>
+          <button class="spacer"></button>
+        </div>
+      </div>
+      <div class="padgroup">
+        <div class="pad-caption">Turn (90&deg;)</div>
+        <!-- Both roll directions get a pad, in the two corners the cross
+             leaves free.  Only one of them used to be here, which was
+             survivable with a keyboard and a dead end without one. -->
+        <div class="pad">
+          <button data-turn="0,1,+1">roll &#8635;<small>Z</small></button>
+          <button data-turn="2,1,+1">pitch up<small>&uarr;</small></button>
+          <button data-turn="0,1,-1">roll &#8634;<small>X</small></button>
+          <button data-turn="2,0,-1">yaw left<small>&larr;</small></button>
+          <button class="spacer"></button>
+          <button data-turn="2,0,+1">yaw right<small>&rarr;</small></button>
+          <button data-turn="2,3,-1">turn kata<small>Q</small></button>
+          <button data-turn="2,1,-1">pitch down<small>&darr;</small></button>
+          <button data-turn="2,3,+1">turn ana<small>E</small></button>
+        </div>
+      </div>
+      <div class="hint"><b>Turn ana/kata</b> swings your forward axis into the 4th dimension &mdash;
+        what was ana becomes straight ahead.</div>
     </div>
-    <div class="pad-caption">Turn (90&deg;)</div>
-    <div class="pad">
-      <button class="spacer"></button>
-      <button data-turn="2,1,+1">pitch up<small>&uarr;</small></button>
-      <button class="spacer"></button>
-      <button data-turn="2,0,-1">yaw left<small>&larr;</small></button>
-      <button data-turn="0,1,+1">roll<small>Z</small></button>
-      <button data-turn="2,0,+1">yaw right<small>&rarr;</small></button>
-      <button data-turn="2,3,-1">turn kata<small>Q</small></button>
-      <button data-turn="2,1,-1">pitch down<small>&darr;</small></button>
-      <button data-turn="2,3,+1">turn ana<small>E</small></button>
-    </div>
-    <div class="hint"><b>Turn ana/kata</b> swings your forward axis into the 4th dimension &mdash;
-      what was ana becomes straight ahead.</div>
   </div>
 
   <div class="section">
@@ -283,6 +404,10 @@ input[type=range]::-moz-range-thumb { width: 13px; height: 13px; border: none;
     </select>
     <div class="hint">Fog of war for the corner <b>map</b> only. It does not change
       what the 3-D view shows &mdash; that is the <b>Sight</b> setting above.</div>
+    <div class="hint" id="mapfit" style="display:none">No room for it right now: the
+      stereo pair fills the screen, and an overlay drawn across it would land in
+      one eye only and break the fusion. Widen the window, narrow the panes, or
+      switch to mono or red/cyan.</div>
   </div>
 
   <div class="section">
@@ -296,19 +421,32 @@ input[type=range]::-moz-range-thumb { width: 13px; height: 13px; border: none;
   </div>
 </div>
 
-<div class="viewport" id="viewport">
-  <canvas id="view"></canvas>
-  <div class="overlay" id="compass"></div>
-  <div class="overlay" id="goalinfo"></div>
-  <div class="overlay" id="mapwrap">
-    <div id="mapcap"><span>4D map</span><span id="mapsub"></span></div>
-    <canvas id="map"></canvas>
+<div class="scrim" id="scrim"></div>
+
+<div class="topbar" id="topbar">
+  <button class="iconbtn" id="sbopen" aria-label="Settings">&#9776;</button>
+  <div class="tb-title">4D Maze</div>
+  <div class="tb-stat" id="tbstat"></div>
+</div>
+
+<div class="stage">
+  <div class="viewport" id="viewport">
+    <canvas id="view"></canvas>
+    <div class="overlay" id="compass"></div>
+    <div class="overlay" id="goalinfo"></div>
+    <div class="overlay" id="mapwrap">
+      <div id="mapcap"><span>4D map</span><span id="mapsub"></span></div>
+      <canvas id="map"></canvas>
+    </div>
+    <div id="win">
+      <h2>Solved</h2>
+      <p id="winsub"></p>
+      <button class="primary" id="wingo">Next maze</button>
+    </div>
   </div>
-  <div id="win">
-    <h2>Solved</h2>
-    <p id="winsub"></p>
-    <button class="primary" id="wingo">Next maze</button>
-  </div>
+
+  <!-- Empty on desktop; the control deck is moved in here on a narrow screen. -->
+  <div id="deckhome"></div>
 </div>
 
 <script>
@@ -1074,6 +1212,11 @@ function buildScene(maze, nav, goalCell, cfg) {
 
 const NBUCKET = 10;
 
+// How much taller than wide a stereo pane may get.  Height costs nothing
+// optically — it just widens the vertical field — but a pane far taller than
+// it is wide is awkward to fuse, so it is capped rather than unbounded.
+const PANE_ASPECT = 1.6;
+
 class StereoRenderer {
   constructor(canvas) {
     this.canvas = canvas;
@@ -1121,13 +1264,20 @@ class StereoRenderer {
     } else if (cfg.mode === 'mono') {
       this._eye(order, buckets, cfg, { x: 0, y: 0, w: W, h: H }, 0, null);
     } else {
-      // Square panes, side by side, centred.  Pane width matters physically:
-      // for WALL-EYED viewing the lines of sight stay parallel, so two
-      // matching points can never be further apart than the viewer's pupils
-      // (~63 mm, about 240 CSS px) or the pair cannot be fused at all.
-      // Cross-eyed has no such ceiling — you can cross as much as you like —
-      // so it defaults wider.
-      const pw = Math.min(cfg.paneWidth, W / 2), ph = Math.min(H, pw);
+      // Two panes side by side, centred.  Pane WIDTH matters physically: for
+      // WALL-EYED viewing the lines of sight stay parallel, so two matching
+      // points can never be further apart than the viewer's pupils (~63 mm,
+      // about 240 CSS px) or the pair cannot be fused at all.  Cross-eyed has
+      // no such ceiling — you can cross as much as you like — so it defaults
+      // wider.
+      //
+      // Pane HEIGHT is free: a taller pane simply shows more vertical field,
+      // since `scale` below is set by the smaller dimension.  Squaring them off
+      // threw away most of the screen — badly so on a phone, where the pair is
+      // half the width and would otherwise be a postage stamp in a tall black
+      // frame.  So panes take the height they are given, up to PANE_ASPECT.
+      const pw = Math.min(cfg.paneWidth, W / 2);
+      const ph = Math.min(H, pw * PANE_ASPECT);
       const x0 = (W - 2 * pw) / 2, y0 = (H - ph) / 2;
       const leftPane  = { x: x0,      y: y0, w: pw, h: ph };
       const rightPane = { x: x0 + pw, y: y0, w: pw, h: ph };
@@ -1211,10 +1361,12 @@ class StereoRenderer {
    panel down.  Small triangles inside a cell show its Z/W passages.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function drawMap(canvas, maze, nav, goal, visited, mode) {
+// `budget` is the width the caller can spare; on a phone that is a fraction of
+// the viewport rather than a fixed 380, or the overlay swallows the whole view.
+function drawMap(canvas, maze, nav, goal, visited, mode, budget = 380) {
   const s = maze.size, dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const gutter = 6, budget = 380;
-  const cell = Math.max(5, Math.min(14, Math.floor((budget - (s[2] - 1) * gutter) / (s[2] * s[0]))));
+  const gutter = 6;
+  const cell = Math.max(3, Math.min(14, Math.floor((budget - (s[2] - 1) * gutter) / (s[2] * s[0]))));
   const panelW = s[0] * cell, panelH = s[1] * cell;
   const totalW = s[2] * panelW + (s[2] - 1) * gutter;
   const totalH = s[3] * panelH + (s[3] - 1) * gutter;
@@ -1400,6 +1552,36 @@ document.querySelectorAll('[data-turn]').forEach(b => {
   b.addEventListener('click', () => { nav.requestTurn(i, j, d); b.blur(); });
 });
 
+/* ── responsive layout ─────────────────────────────────── */
+
+// Must match the @media query in the stylesheet, second clause included:
+// a landscape phone clears 820px but is far too short for a tall sidebar.
+const MOBILE_Q = window.matchMedia(
+  '(max-width: 820px), (max-height: 560px) and (pointer: coarse)');
+
+// The control deck is ONE node with two homes: inside the sidebar's Move
+// section on desktop, under the view on mobile.  Relocating a single node
+// beats rendering the pads twice — the data-move / data-turn handlers are
+// bound once, so the two layouts cannot drift apart or double-fire.
+function applyLayout() {
+  const home = MOBILE_Q.matches ? $('deckhome') : $('movesec');
+  if ($('deck').parentElement !== home) home.appendChild($('deck'));
+  if (!MOBILE_Q.matches) setDrawer(false);   // a widened window must not strand it open
+  onResize();
+}
+MOBILE_Q.addEventListener('change', applyLayout);
+
+// On mobile the sidebar is a drawer over the view rather than a column beside
+// it, so it needs an explicit open/close.
+function setDrawer(open) {
+  $('sidebar').classList.toggle('open', open);
+  $('scrim').classList.toggle('open', open);
+}
+$('sbopen').addEventListener('click', () => setDrawer(true));
+$('sbclose').addEventListener('click', () => setDrawer(false));
+$('scrim').addEventListener('click', () => setDrawer(false));
+window.addEventListener('keydown', ev => { if (ev.key === 'Escape') setDrawer(false); });
+
 /* ── controls ──────────────────────────────────────────── */
 
 const MODE_HINT = {
@@ -1415,15 +1597,23 @@ function bindSlider(id, valId, fmt, apply) {
   el.addEventListener('input', upd); upd();
 }
 
+// The renderer clamps the pane to half the view anyway, but leaving the slider
+// reading "460 px" on a phone that is rendering 206 is a readout that lies.
+// Clamp the value we retarget to, so what it says is what you get.
+function retargetPane() {
+  if (paneTouched) return;
+  const el = $('pane');
+  const fit = Math.max(+el.min, Math.floor($('viewport').clientWidth / 2));
+  const want = Math.min(PANE_DEFAULT[cfg.mode] || +el.value, fit);
+  if (want !== +el.value) { el.value = want; el.dispatchEvent(new Event('input')); }
+}
+
 $('mode').addEventListener('change', () => {
   cfg.mode = $('mode').value;
   $('modehint').innerHTML = MODE_HINT[cfg.mode];
   const sbs = cfg.mode === 'wall' || cfg.mode === 'cross';
   $('pane').parentElement.style.display = sbs ? '' : 'none';
-  if (sbs && !paneTouched && PANE_DEFAULT[cfg.mode] !== +$('pane').value) {
-    $('pane').value = PANE_DEFAULT[cfg.mode];
-    $('pane').dispatchEvent(new Event('input'));
-  }
+  if (sbs) retargetPane();
 });
 $('mode').dispatchEvent(new Event('change'));
 
@@ -1476,8 +1666,9 @@ $('wallcol').dispatchEvent(new Event('change'));
 // back to steering instead of nudging whatever was last touched.
 document.querySelectorAll('.sidebar select, .sidebar input[type=range]')
   .forEach(el => el.addEventListener('change', () => el.blur()));
-$('newmaze').addEventListener('click', () => newMaze((Math.random() * 100000) | 0));
-$('restart').addEventListener('click', restart);
+// Starting a maze from the drawer should show you the maze, not the drawer.
+$('newmaze').addEventListener('click', () => { newMaze((Math.random() * 100000) | 0); setDrawer(false); });
+$('restart').addEventListener('click', () => { restart(); setDrawer(false); });
 $('wingo').addEventListener('click', () => newMaze((Math.random() * 100000) | 0));
 $('size').addEventListener('change', () => newMaze());
 $('braid').addEventListener('change', () => newMaze());
@@ -1514,12 +1705,16 @@ function updateReadout() {
     `you&nbsp; (${nav.cell.join(', ')})<br>` +
     `<span style="color:#6e7681">${d >= 0 ? d + ' cells away' : ''}</span>`;
 
+  // The mobile top bar carries what #goalinfo would, without covering the maze.
+  $('tbstat').textContent =
+    `${nav.steps} steps` + (d >= 0 ? `  \u00b7  ${d} to goal` : '');
+
   $('mapsub').textContent = `Z \u2192   W \u2193`;
 }
 
 /* ── main loop ─────────────────────────────────────────── */
 
-let lastCell = '', lastT = performance.now();
+let lastCell = '', lastMapKey = '', lastT = performance.now();
 
 function frame(now) {
   const dt = Math.min((now - lastT) / 1000, 0.1);
@@ -1531,21 +1726,62 @@ function frame(now) {
   renderer.render(segs, cfg);
 
   const key = nav.cell.join(',') + '|' + nav.steps;
-  if (key !== lastCell) {
-    lastCell = key;
-    updateReadout();
-    const mm = $('mapmode').value;
-    if (mm !== 'off') drawMap($('map'), maze, nav, goal, visited, mm);
-  }
+  if (key !== lastCell) { lastCell = key; updateReadout(); redrawMap(); }
+
+  // The map has to fit around the panes, so it is re-laid-out whenever the
+  // pane box moves — resize, mode switch, pane-width slider, all of it.
+  // Watching the rendered result rather than each control keeps this in one
+  // place and cannot be forgotten by a new setting.
+  const mk = renderer.lastPanes.map(p => `${p.x | 0},${p.y | 0},${p.w | 0},${p.h | 0}`)
+    .join('|') + '|' + $('mapmode').value;
+  if (mk !== lastMapKey) { lastMapKey = mk; redrawMap(); }
+
   requestAnimationFrame(frame);
 }
 
-function onResize() { renderer.resize(); }
+// The map overlay sits on top of the view, so its size has to follow the
+// view's: a fixed 380px is a corner badge on a monitor and a blindfold on a
+// phone.  Clamped so it never grows past what it was designed for.
+const MAP_MIN = 96;
+
+/**
+ * How wide the map overlay may be before it starts costing more than it gives.
+ *
+ * It is roughly square (s[2] panels across, s[3] down), so a width-only bound
+ * makes it tower over a landscape phone — hence both dimensions.
+ *
+ * In a two-pane stereo mode it must additionally stay OUT of the panes. An
+ * overlay drawn on top of a fused pair appears to one eye only, and binocular
+ * rivalry is far more disruptive than a missing map; on a wide screen it fits
+ * in the margin beside the panes, and on a phone, where the pair spans the
+ * whole width, it has to fit underneath them or not appear at all.
+ */
+function mapBudget() {
+  const vp = $('viewport');
+  let b = Math.min(380, vp.clientWidth * 0.42, vp.clientHeight * 0.45);
+  const panes = renderer.lastPanes;
+  if (panes && panes.length === 2) {
+    const r = panes[1];
+    b = Math.min(b, Math.max(vp.clientWidth - (r.x + r.w), vp.clientHeight - (r.y + r.h)) - 16);
+  }
+  return b;
+}
+
+function redrawMap() {
+  const budget = mapBudget();
+  const fits = budget >= MAP_MIN;
+  $('mapwrap').classList.toggle('nofit', !fits);
+  $('mapfit').style.display = fits ? 'none' : '';
+  if (!fits || $('mapmode').value === 'off') return;
+  drawMap($('map'), maze, nav, goal, visited, $('mapmode').value, budget);
+}
+
+function onResize() { renderer.resize(); retargetPane(); redrawMap(); }
 window.addEventListener('resize', onResize);
+window.addEventListener('orientationchange', onResize);
 
 newMaze(1);
-onResize();
-drawMap($('map'), maze, nav, goal, visited, $('mapmode').value);
+applyLayout();
 requestAnimationFrame(frame);
 </script>
 </body>
