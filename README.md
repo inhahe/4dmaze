@@ -5,7 +5,7 @@ first person — forward/back, left/right, up/down, and **ana/kata** — and you
 turn in any of those planes too, including swinging your forward axis into the
 fourth dimension.
 
-**[Play it here](https://inhahe.com/4d-maze.html)** — or open `4d-maze.html`
+**[Play it here](https://inhahe.github.io/4dmaze/4d-maze.html)** — or open `4d-maze.html`
 in a browser. No build step, no dependencies, one file.
 
 ## The idea in one paragraph
